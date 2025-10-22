@@ -1,0 +1,46 @@
+{
+  "name": "revenue-management-system",
+  "version": "1.0.0",
+  "description": "Browser-based revenue management system for apartment pricing",
+  "private": true,
+  "scripts": {
+    "smoke": "playwright test tests/smoke.spec.ts --reporter=line",
+    "test:boundaries": "jest tests/boundaries.spec.ts",
+    "test": "npm run test:boundaries && npm run smoke",
+    "lint": "eslint . --ext .js,.ts",
+    "lint:fix": "eslint . --ext .js,.ts --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "validate": "ajv validate -s schemas/*.json -d tmp/*.json || echo 'No validation data yet'",
+    "serve": "python3 -m http.server 8000",
+    "precommit": "npm run lint && npm run format:check && npm run test"
+  },
+  "keywords": [
+    "revenue-management",
+    "pricing",
+    "property-management",
+    "apartment-pricing"
+  ],
+  "author": "Thorpe Management",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "ajv-cli": "^5.0.0",
+    "eslint": "^8.55.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.0.1",
+    "jest": "^29.7.0",
+    "prettier": "^3.1.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
+

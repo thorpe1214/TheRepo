@@ -427,6 +427,155 @@ items.forEach(item => {
 
 ---
 
+## Schema Validation
+
+### Data Structure Contracts
+
+All core data structures have JSON Schema definitions in `/schemas/`:
+
+- **`mappedRows.schema.json`**: Rent roll data after CSV upload and mapping
+- **`fpResults.schema.json`**: Floorplan pricing results after "Run New" calculation
+
+### When to Validate
+
+#### During Development
+```bash
+# After making pricing changes, extract sample data from browser console:
+# 1. Open browser DevTools (F12)
+# 2. After running pricing, copy data:
+console.log(JSON.stringify(window.mappedRows.slice(0, 5), null, 2));
+console.log(JSON.stringify(window.__fpResults, null, 2));
+
+# 3. Save to tmp/ directory
+cat > tmp/mappedRows.json   # Paste JSON
+cat > tmp/fpResults.json    # Paste JSON
+
+# 4. Run validation
+npm run validate
+```
+
+#### In Code Reviews
+When reviewing PRs that modify data structures:
+
+```markdown
+**Schema Validation Checklist:**
+- [ ] Verified schema files updated if data structure changed
+- [ ] Sample data extracted and saved to `/tmp/`
+- [ ] `npm run validate` passes without errors
+- [ ] Schema README updated if new fields added
+- [ ] Dependent modules updated to handle new structure
+```
+
+### Updating Schemas
+
+If you change data structure (e.g., add new field to floorplan results):
+
+1. **Update Schema**
+   ```bash
+   # Edit schemas/fpResults.schema.json
+   # Add new field with type, description, examples
+   ```
+
+2. **Document Change**
+   ```markdown
+   # In schemas/README.md
+   ## Recent Changes
+   - 2025-10-22: Added `seasonalityApplied` boolean to fpResults
+   ```
+
+3. **Update Tests**
+   ```typescript
+   // In tests/smoke.spec.ts or boundaries.spec.ts
+   // Add assertions for new field if critical
+   ```
+
+4. **Validate Sample Data**
+   ```bash
+   # Extract fresh data from browser
+   # Save to tmp/
+   # Run validation
+   npm run validate
+   ```
+
+### Schema Standards
+
+When adding fields to schemas:
+
+#### Required vs Optional
+```json
+{
+  "required": ["unit", "floorplan_code", "status"],  // Must be present
+  "properties": {
+    "amenity_adj": {  // Optional field
+      "type": "number"
+    }
+  }
+}
+```
+
+#### Clear Descriptions
+```json
+{
+  "referenceBase": {
+    "type": "number",
+    "description": "Reference base rent after comfort band adjustments",
+    "minimum": 0,
+    "examples": [1305, 1755, 2110]
+  }
+}
+```
+
+#### Realistic Examples
+Include examples that match actual data:
+```json
+{
+  "status": {
+    "type": "string",
+    "enum": ["vacant", "occupied", "occupied (on-notice)", "preleased"],
+    "examples": ["vacant", "occupied", "occupied (on-notice)"]
+  }
+}
+```
+
+### Validation Errors
+
+Common schema validation errors and fixes:
+
+#### Missing Required Field
+```
+Error: data should have required property 'floorplan_code'
+Fix: Ensure CSV mapping includes floorplan column
+```
+
+#### Wrong Type
+```
+Error: data.current_rent should be number
+Fix: Convert string to number during CSV parsing
+```
+
+#### Invalid Enum Value
+```
+Error: data.status should be equal to one of the allowed values
+Fix: Normalize status strings (lowercase, handle variations)
+```
+
+### Benefits
+
+Schema validation provides:
+- ✅ **Documentation**: Clear spec of expected data format
+- ✅ **Early Detection**: Catch structural issues before runtime
+- ✅ **Contract Enforcement**: Ensure modules agree on format
+- ✅ **Regression Prevention**: Detect unintended changes
+
+### Resources
+
+- Schema files: `/schemas/`
+- Schema docs: `/schemas/README.md`
+- Sample data: `/tmp/` (gitignored)
+- Validation tool: `ajv-cli` (installed as dev dependency)
+
+---
+
 ## Module Boundaries
 
 ### Rules of Separation

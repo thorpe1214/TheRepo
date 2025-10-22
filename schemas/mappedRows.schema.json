@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://thorpe-management.com/schemas/mappedRows.schema.json",
+  "title": "Mapped Rent Roll Rows",
+  "description": "Schema for validated rent roll data after CSV upload and column mapping",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["unit", "floorplan_code", "status", "current_rent"],
+    "properties": {
+      "unit": {
+        "type": "string",
+        "description": "Unit identifier (e.g., 'A101', 'B205')",
+        "minLength": 1,
+        "examples": ["A101", "B205", "C370"]
+      },
+      "floorplan_code": {
+        "type": "string",
+        "description": "Floorplan code with optional display name (e.g., 'S0 - Studio', 'A1 - 1x1')",
+        "pattern": "^[A-Z0-9]+",
+        "examples": ["S0 - Studio", "A1 - 1x1", "B2 - 2x2"]
+      },
+      "bedrooms": {
+        "type": ["number", "string"],
+        "description": "Number of bedrooms (0 for studio)",
+        "minimum": 0,
+        "examples": [0, 1, 2, 3, "Studio"]
+      },
+      "status": {
+        "type": "string",
+        "description": "Occupancy status",
+        "enum": ["vacant", "occupied", "occupied (on-notice)", "preleased"],
+        "examples": ["vacant", "occupied", "occupied (on-notice)"]
+      },
+      "current_rent": {
+        "type": "number",
+        "description": "Current monthly rent amount in dollars",
+        "minimum": 0,
+        "examples": [1300, 1750, 2100]
+      },
+      "lease_start_date": {
+        "type": "string",
+        "format": "date",
+        "description": "Lease start date (ISO 8601 format)",
+        "examples": ["2024-01-01", "2024-06-15"]
+      },
+      "lease_end_date": {
+        "type": "string",
+        "format": "date",
+        "description": "Lease end date (ISO 8601 format)",
+        "examples": ["2024-12-31", "2025-06-14"]
+      },
+      "prelease_start": {
+        "type": "string",
+        "format": "date",
+        "description": "Pre-lease availability date",
+        "examples": ["2024-11-01"]
+      },
+      "vacant_days": {
+        "type": "number",
+        "description": "Number of days unit has been vacant",
+        "minimum": 0,
+        "examples": [0, 15, 60]
+      },
+      "move_in_date": {
+        "type": "string",
+        "format": "date",
+        "description": "Actual or projected move-in date",
+        "examples": ["2024-01-15"]
+      },
+      "amenity_adj": {
+        "type": "number",
+        "description": "Unit-level amenity adjustment (positive or negative)",
+        "examples": [0, 50, -25, 100]
+      }
+    },
+    "additionalProperties": true
+  },
+  "minItems": 1,
+  "examples": [
+    [
+      {
+        "unit": "A101",
+        "floorplan_code": "S0 - Studio",
+        "bedrooms": 0,
+        "status": "occupied (on-notice)",
+        "current_rent": 1300,
+        "lease_start_date": "2024-01-01",
+        "lease_end_date": "2024-12-31",
+        "prelease_start": "2024-12-01",
+        "vacant_days": 0,
+        "move_in_date": "2024-01-01",
+        "amenity_adj": 0
+      },
+      {
+        "unit": "B207",
+        "floorplan_code": "A1 - 1x1",
+        "bedrooms": 1,
+        "status": "vacant",
+        "current_rent": 1750,
+        "lease_start_date": "2023-08-01",
+        "lease_end_date": "2024-07-31",
+        "prelease_start": null,
+        "vacant_days": 45,
+        "move_in_date": null,
+        "amenity_adj": 50
+      }
+    ]
+  ]
+}
+

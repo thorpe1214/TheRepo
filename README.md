@@ -5,6 +5,21 @@ The Revenue Management System is a browser-based application designed to calcula
 
 This project is currently a **single-page HTML/JavaScript app** with logic externalized into modular JS files. It is not yet a full-stack application but has been structured for easy migration later (e.g., into Next.js).
 
+### Operator Promises
+
+This system is built on three core principles:
+
+1. **Transparent Math** 📊  
+   Every pricing calculation is visible and understandable. No black boxes. You see exactly how base rent, term premiums, amenity adjustments, and guardrails combine to produce the final price.
+
+2. **Reason Chips** 💡  
+   (Future enhancement) Every price will show "reason chips" explaining why it was set at that level (e.g., "Band adjustment +$5", "Tier gap floor applied", "Seasonality cap at 10%").
+
+3. **Plain-English Deltas** 📝  
+   Price changes show clear comparisons: "Proposed $1,350 vs Current $1,300 (↑$50 / +3.8%)". Operators can see impact before committing changes.
+
+> **Note**: All sample data in this repository is synthetic and contains no Personally Identifiable Information (PII). Sample rent rolls are generated for testing purposes only.
+
 ---
 
 ## 🏗️ Architecture
@@ -12,7 +27,7 @@ This project is currently a **single-page HTML/JavaScript app** with logic exter
 ### Current Structure
 ```
 /Users/brennanthorpe/Desktop/Thorpe Management/
-├── Step 89E — architecture boundaries + docs.html  # Latest production-ready version
+├── Step 90 — Repo hygiene & guardrails upgrade.html  # Latest production-ready version
 ├── src/
 │   └── js/
 │       ├── pricing-helpers.js     # Shared utilities (formatMoney, dates, etc.)
@@ -74,6 +89,66 @@ This project is currently a **single-page HTML/JavaScript app** with logic exter
 - Development-time boundary checks (warnings only, no behavior changes)
 - Ensures separation between modules
 - Example: Warns if floorplan code tries to call unit rendering
+
+---
+
+## 🚀 Run Locally
+
+Get up and running in 3 steps:
+
+### 1. Install Dependencies
+```bash
+# Clone or navigate to the project directory
+cd "/Users/brennanthorpe/Desktop/Thorpe Management"
+
+# Install all development dependencies (Node.js 18+ required)
+npm install
+```
+
+### 2. Start Local Server
+```bash
+# Start a local HTTP server on port 8000
+npm run serve
+
+# Or use Python directly:
+python3 -m http.server 8000
+```
+
+### 3. Open and Test
+```bash
+# In your browser, navigate to:
+http://localhost:8000/Step%2090%20—%20Repo%20hygiene%20&%20guardrails%20upgrade.html
+
+# Or open directly from file system (some features may not work):
+open "Step 90 — Repo hygiene & guardrails upgrade.html"
+```
+
+### 4. Upload Sample Data
+1. Click **"Choose File"** and select `sample_rent_roll_300_units_statuses.csv`
+2. Verify column mapping auto-detects correctly
+3. Click **"Confirm Mapping"**
+4. Observe occupancy stats update (e.g., Trending Occupancy: 92.00%)
+5. Click **"Run New"** to generate pricing
+6. Navigate to **"New Pricing"** tab → See Floorplan and Unit pricing
+7. Click **"Run Renewals"** → Navigate to **"Renewals"** tab
+
+### Run Tests
+```bash
+# Run all tests (module boundaries + smoke tests)
+npm run test
+
+# Run only smoke tests (Playwright)
+npm run smoke
+
+# Run only boundary tests (Jest)
+npm run test:boundaries
+
+# Check code quality
+npm run lint
+npm run format:check
+```
+
+**Expected test runtime**: <10 seconds for all tests
 
 ---
 

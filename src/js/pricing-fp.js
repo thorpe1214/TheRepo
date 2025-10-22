@@ -427,8 +427,8 @@
                   <td>${term} mo</td>
                   <td>${fmt(p)}</td>
                   <td style="text-align:right; opacity:.9"><small>${notes}</small></td>
-                </tr>`;
-
+        </tr>`;
+        
         // export includes Starting Rent anchor (only SR value in column 2)
         __newPricingRows.push([code || fp, Math.round(sr>0?sr:0), term, Math.round(p)]);
       }

@@ -160,129 +160,128 @@
     return [];
   }
 
-  // Render Unit Pricing Section (stub for now - will be populated with actual rendering logic)
+  // Render Unit Pricing Section - Complete Implementation
   function renderUnitPricingSection(){
-    const container = document.getElementById('unitPricingSection');
-    if (!container) return;
-    
-    // Get state from window
-    const state = window.__npUnitsState || { search:'', vac:true, notice:true, page:1 };
-    const searchValRaw = state.search || '';
-    const fltVac = state.vac !== false;
-    const fltNotice = state.notice !== false;
-    
-    // Build units
-    const allUnits = buildUnitsAll();
-    if (!allUnits || allUnits.length === 0){
-      container.innerHTML = '<div class="note">No units found. Upload a rent roll first.</div>';
-      return;
-    }
-    
-    // Apply filters
-    let filtered = allUnits;
-    
-    // Status filter
-    filtered = filtered.filter(u=>{
-      const st = unitStatus(u);
-      if (state.vac && st==='Vacant') return true;
-      if (state.notice && st==='On Notice') return true;
-      if (!state.vac && !state.notice) return st==='Occupied'; // fallback
-      return false;
+    const host=document.getElementById('unitPricingSection'); if(!host) return;
+    const isUnitTab = (typeof getNPSubtab==='function' ? getNPSubtab()==='unit' : false);
+    if (!isUnitTab && !loadShowUnits()){ host.innerHTML=''; return; }
+    const fpIdx=buildFpIndex(); if(!fpIdx.size){ host.innerHTML='<div class="note">No floorplan bases available yet.</div>'; return; }
+
+    const unitsRaw = isUnitTab ? buildUnitsAll() : buildUnits();
+    // Available-only gating on Unit tab: keep Vacant / On Notice only
+    const units = isUnitTab ? unitsRaw.filter(u=>{ const st=unitStatus(u); return st==='Vacant' || st==='On Notice'; }) : unitsRaw;
+    const today=new Date();
+    const totalUnits = units.length;
+    // Capture current control state from DOM if present; fall back to memory state
+    const sEl = document.getElementById('unitSearch');
+    const vacEl = document.getElementById('fltVac');
+    const notEl = document.getElementById('fltNotice');
+    const searchValRaw = (sEl && typeof sEl.value === 'string') ? sEl.value : (window.__npUnitsState.search || '');
+    const fltVac = (vacEl && typeof vacEl.checked === 'boolean') ? vacEl.checked : (window.__npUnitsState.vac !== false);
+    const fltNotice = (notEl && typeof notEl.checked === 'boolean') ? notEl.checked : (window.__npUnitsState.notice !== false);
+    // Update memory state now so filtering uses it
+    window.__npUnitsState.search = searchValRaw;
+    window.__npUnitsState.vac = !!fltVac;
+    window.__npUnitsState.notice = !!fltNotice;
+    const searchVal = searchValRaw.trim().toLowerCase();
+    let filtered = units.filter(u=>{
+      const st=unitStatus(u); // will be Vacant or On Notice only in Unit tab
+      const hit = !searchVal || String(u.unit).toLowerCase().includes(searchVal) || String(u.floorplan_code||'').toLowerCase().includes(searchVal);
+      if (st==='Vacant') return (fltVac && hit);
+      if (st==='On Notice') return (fltNotice && hit);
+      return false; // never include Others
     });
-    
-    // Search filter
-    if (state.search && state.search.trim()){
-      const q = state.search.toLowerCase().trim();
-      filtered = filtered.filter(u=>{
-        const unit = String(u.unit||'').toLowerCase();
-        const fp = String(u.floorplan_code||'').toLowerCase();
-        return unit.includes(q) || fp.includes(q);
-      });
-    }
-    
-    // Store filtered for external use
+
+    // Make filtered units available to the detail overlay renderer
     window.__npUnitsFiltered = filtered;
-    
-    // Render unit table with proper implementation
-    let html = '';
-    
+
+    // Global pagination if >500
+    // Paging state
+    const PER=100; const needsPaging = filtered.length>500; const pages = needsPaging? Math.ceil(filtered.length/PER):1;
+    if (window.__npUnitsState.page == null) window.__npUnitsState.page = 1;
+    window.__npUnitsPage = Math.min(Math.max(window.__npUnitsState.page,1), pages);
+    const page = window.__npUnitsPage;
+    const sliceStart=(page-1)*PER, sliceEnd = needsPaging? (sliceStart+PER): filtered.length; const paged = needsPaging? filtered.slice(sliceStart, sliceEnd): filtered;
+
+    // Group by FP using only paged units to avoid heavy DOM
+    const byFP = new Map(); let hasUnmapped=false;
+    for(const u of paged){ 
+      // Extract short code from full floorplan name (e.g., "S0 - Studio" -> "S0")
+      const shortCode = String(u.floorplan_code||'').split(' - ')[0];
+      if(!fpIdx.has(shortCode)){ hasUnmapped=true; continue; } 
+      const arr=byFP.get(shortCode)||[]; arr.push(u); byFP.set(shortCode, arr); 
+    }
+    const fps = Array.from(byFP.keys()).map(code=>({ code, name: (window.propertySetup?.floorplans||[]).find(x=>String(x.code)===String(code))?.name || code, referenceBase:(fpIdx.get(code)?.referenceBase||null), referenceTerm:(fpIdx.get(code)?.referenceTerm||14) }));
+    fps.sort((a,b)=>{ const ka=computeFpSortKey(a), kb=computeFpSortKey(b); return (ka[0]-kb[0]) || ka[1].localeCompare(kb[1]); });
+
+    let html='';
     // Filters row
     html += '<div class="actions" style="gap:8px; align-items:center; margin-bottom:8px">';
-    html += `<input type="text" id="unitSearch" placeholder="Search unit or FP code" style="max-width:220px" value="${searchValRaw}" />`;
-    html += `<label class="inline-flex items-center" style="gap:4px"><input type="checkbox" id="fltVac" ${fltVac?'checked':''}> Vacant</label>`;
-    html += `<label class="inline-flex items-center" style="gap:4px"><input type="checkbox" id="fltNotice" ${fltNotice?'checked':''}> On Notice</label>`;
+    html += `<input type="text" id="unitSearch" placeholder="Search unit or FP code" style="max-width:220px" value="${__np_escape(searchValRaw)}" />`;
+    html += `<label><input type="checkbox" id="fltVac" ${fltVac ? 'checked' : ''} /> Vacant</label>`;
+    html += `<label><input type="checkbox" id="fltNotice" ${fltNotice ? 'checked' : ''} /> On Notice</label>`;
+    if (needsPaging){ html += `<span class="badge" style="margin-left:auto">${filtered.length} units</span>`; }
     html += '</div>';
+    if (hasUnmapped) html += '<div class="note" style="margin-bottom:6px">Some units are unmapped — fix in Settings → Floorplan Map.</div>';
 
-    // Summary row
-    html += `<div class="note" style="margin-bottom:8px">Found ${totalUnits} units matching filters.`;
-    if (hasUnmapped) html += ' Some units have unmapped floorplan codes.';
-    html += '</div>';
+    // Groups
+    fps.forEach(fp=>{
+      const list = sortUnitsForFp(byFP.get(fp.code)||[], today);
+      const btnId = `fpUnits_${fp.code}`;
+      html += `<section class="card" style="margin:8px 0;">`;
+      html += `<div class="actions" style="justify-content:space-between"><button class="btn xs" aria-expanded="true" data-coll="${btnId}">FP ${fp.code} — ${list.length} available</button><div class="pill">Ref: ${formatMoney(fp.referenceBase)} (${fp.referenceTerm} mo)</div></div>`;
+      html += `<div id="${btnId}" style="margin-top:6px">`;
+      html += '<div style="overflow:auto"><table class="basic" style="width:100%"><thead><tr><th>Unit</th><th>FP</th><th>Status</th><th>Avail / Vacant Age</th><th>Current</th><th>Proposed (ref)</th><th>Δ $</th><th>Δ %</th><th>Amenities</th><th class="ta-right w-8">&nbsp;</th></tr></thead><tbody>';
+      list.forEach(u=>{
+        const st=unitStatus(u);
+        const cur=Number(u.current)||NaN;
+        const refPrice=Number(fp.referenceBase)||NaN;
+        const amen=Number(u.amenity_adj||0);
+        const proposedWithAmen = Math.max(0, (isFinite(refPrice)?refPrice:0) + amen);
+        const d$=(isFinite(cur)&&isFinite(proposedWithAmen))? (proposedWithAmen-cur):NaN;
+        const dP=(isFinite(cur)&&cur>0)? (d$/cur*100):NaN;
+        let availTxt='—'; if(st==='Vacant'){ const age=vacancyAgeDays(u,today); availTxt=`Vacant ${age} days`; } else if(st==='On Notice'){ const dt=onNoticeAvailDate(u); availTxt = dt? ('Avail '+dt.toISOString().slice(0,10)):'On Notice'; }
+        let amenCell = '';
+        if (amen !== 0){ const sign = amen > 0 ? '+' : '-'; amenCell = sign + formatMoney(Math.abs(amen)); }
+        const key = `${fp.code}::${String(u.unit||'')}`;
+        html += `<tr class="unit-row" data-key="${key}" data-base="${isFinite(proposedWithAmen)?proposedWithAmen:''}" data-cur="${isFinite(cur)?cur:''}" data-fp="${fp.code}">`+
+                `<td>${__np_escape(String(u.unit||''))}</td>`+
+                `<td>${fp.code}</td><td>${st}</td><td>${availTxt}</td><td>${isFinite(cur)?formatMoney(cur):'—'}</td><td>${isFinite(proposedWithAmen)?formatMoney(proposedWithAmen):'—'}</td><td>${isFinite(d$)?formatMoney(d$):'—'}</td><td>${isFinite(dP)?formatPct(dP):'—'}</td><td>${amenCell}</td></tr>`;
+        // Append right-side toggle
+        html = html.replace(/<\/tr>$/, `<td class=\"ta-right\"><button class=\"btn-icon unit-expand\" aria-expanded=\"false\" aria-label=\"Show lease term options\" data-unit=\"${__np_escape(String(u.unit||''))}\">▼<\/button><\/td><\/tr>`);
+      });
+      html += '</tbody></table></div>';
+      html += '</div></section>';
+    });
 
-    // Paging controls if needed
-    if (needsPaging) {
-      html += '<div class="actions" style="gap:8px; margin-bottom:8px">';
-      html += `<button class="btn sm" ${page<=1?'disabled':''} onclick="window.__npUnitsState.page=${page-1}; __renderUnitPricingSection();">← Prev</button>`;
-      html += `<span>Page ${page} of ${pages}</span>`;
-      html += `<button class="btn sm" ${page>=pages?'disabled':''} onclick="window.__npUnitsState.page=${page+1}; __renderUnitPricingSection();">Next →</button>`;
+    // Global pager
+    if (needsPaging){
+      html += '<div class="actions" style="justify-content:flex-end; gap:8px; margin-top:8px">';
+      html += `<button id="npPrev" class="btn xs" ${page<=1?'disabled':''}>Prev</button>`;
+      html += `<span class="badge">${page} / ${pages}</span>`;
+      html += `<button id="npNext" class="btn xs" ${page>=pages?'disabled':''}>Next</button>`;
       html += '</div>';
     }
 
-    // Floorplan groups
-    for(const fp of fps){
-      const units = byFP.get(fp.code) || [];
-      const sortedUnits = sortUnitsForFp(units, today);
-      html += `<div style="border:1px solid #0b2035; border-radius:8px; padding:8px; margin-bottom:8px">`;
-      html += `<div style="font-weight:600; margin-bottom:4px">${fp.code} - ${fp.name} (${units.length} units)</div>`;
-      html += '<table class="basic" style="margin:0">';
-      html += '<thead><tr><th>Unit</th><th>Status</th><th>Current Rent</th><th>Available</th><th>Actions</th></tr></thead>';
-      html += '<tbody>';
-      for(const u of sortedUnits){
-        const st = unitStatus(u);
-        const vacDays = vacancyAgeDays(u, today);
-        const availDate = onNoticeAvailDate(u);
-        const availText = st === 'Vacant' ? (vacDays > 0 ? `${vacDays} days` : 'Ready') : (availDate ? fmtDate(availDate) : '—');
-        html += `<tr>
-          <td>${u.unit}</td>
-          <td><span class="badge ${st==='Vacant'?'badge-red':st==='On Notice'?'badge-yellow':''}">${st}</span></td>
-          <td>${formatMoney(u.current_rent)}</td>
-          <td>${availText}</td>
-          <td><button class="btn sm unit-expand" data-unit="${u.unit}" aria-label="View details for unit ${u.unit}">Details</button></td>
-        </tr>`;
-      }
-      html += '</tbody></table></div>';
-    }
-
-    container.innerHTML = html;
-
-    // Wire up event handlers
-    const searchEl = document.getElementById('unitSearch');
-    if (searchEl && !searchEl.__wired) {
-      searchEl.__wired = true;
-      searchEl.addEventListener('input', __np_debounce(() => {
-        window.__npUnitsState.search = searchEl.value;
-        __renderUnitPricingSection();
-      }, 300));
-    }
-
-    const vacEl = document.getElementById('fltVac');
-    if (vacEl && !vacEl.__wired) {
-      vacEl.__wired = true;
-      vacEl.addEventListener('change', () => {
-        window.__npUnitsState.vac = vacEl.checked;
-        __renderUnitPricingSection();
-      });
-    }
-
-    const notEl = document.getElementById('fltNotice');
-    if (notEl && !notEl.__wired) {
-      notEl.__wired = true;
-      notEl.addEventListener('change', () => {
-        window.__npUnitsState.notice = notEl.checked;
-        __renderUnitPricingSection();
-      });
-    }
-
-    // Ensure detail box exists
+    host.innerHTML = html;
+    // Wire filter events
+    const reRenderDebounced = __np_debounce(()=>{
+      const s2=document.getElementById('unitSearch'); const v2=document.getElementById('fltVac'); const n2=document.getElementById('fltNotice');
+      window.__npUnitsState.search = s2 ? s2.value : '';
+      window.__npUnitsState.vac = v2 ? !!v2.checked : true;
+      window.__npUnitsState.notice = n2 ? !!n2.checked : true;
+      window.__npUnitsState.page = 1;
+      window.__renderUnitPricingSection();
+    }, 150);
+    const s=document.getElementById('unitSearch'); if(s && !s.__wired){ s.__wired=true; s.addEventListener('input', reRenderDebounced); }
+    const a=document.getElementById('fltVac'); if(a && !a.__wired){ a.__wired=true; a.addEventListener('change', reRenderDebounced); }
+    const b=document.getElementById('fltNotice'); if(b && !b.__wired){ b.__wired=true; b.addEventListener('change', reRenderDebounced); }
+    host.querySelectorAll('button[data-coll]').forEach(btn=>{ btn.addEventListener('click', ()=>{ const id=btn.getAttribute('data-coll'); const el=document.getElementById(id); const exp=btn.getAttribute('aria-expanded')==='true'; btn.setAttribute('aria-expanded', String(!exp)); if(el) el.style.display = exp? 'none':'block'; }); });
+    const prev=document.getElementById('npPrev'), next=document.getElementById('npNext');
+    if(prev) prev.onclick=()=>{ window.__npUnitsState.page=Math.max(1,(window.__npUnitsState.page||1)-1); window.__renderUnitPricingSection(); };
+    if(next) next.onclick=()=>{ window.__npUnitsState.page=Math.min(pages,(window.__npUnitsState.page||1)+1); window.__renderUnitPricingSection(); };
+    // Detail box wiring (overlay) and builder
+    // Ensure detail container exists once
     (function ensureDetailBox(){
       const hostBox = document.getElementById('unitDetailBox');
       if (hostBox) return;
@@ -317,6 +316,20 @@
         }
       });
     }
+    // Restore focus nicety
+    if (document.activeElement && document.activeElement.id === 'unitSearch'){
+      const s3=document.getElementById('unitSearch'); if (s3){ s3.focus(); const len=s3.value.length; try{ s3.setSelectionRange(len,len); }catch(e){} }
+    }
+  }
+
+  // Helper: format percentage
+  function formatPct(n){ 
+    return isFinite(n)? (Math.round(n*10)/10+'%'):'—'; 
+  }
+
+  // Helper: escape HTML
+  function __np_escape(s){ 
+    return String(s||'').replace(/[&<>"']/g, m=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); 
   }
 
   // Helper: determine unit status

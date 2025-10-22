@@ -269,6 +269,104 @@ refactor: Step 89C - externalize unit pricing
 feat: Step 89B - externalize app boot logic
 ```
 
+### Promote to Stable
+
+When a Step represents a significant milestone and all tests pass, promote it to a stable release:
+
+#### 1. Update Documentation
+```bash
+# Update README.md "Current stable" reference
+# Change from: Step 89E — architecture boundaries + docs.html
+# To:          Step 90 — Repo hygiene & guardrails upgrade.html
+```
+
+#### 2. Update CHANGELOG.md
+Add an entry documenting what changed:
+```markdown
+## [1.1.0] - 2025-10-23
+
+### Added - Step 91: Export to Excel
+- Export pricing to Excel spreadsheet
+- Downloadable format for operators
+- Preserves formatting and calculations
+
+### Changed
+- No behavior changes in pricing logic
+```
+
+#### 3. Tag the Release
+```bash
+# Create an annotated tag with detailed release notes
+git tag -a v1.1.0-stable -m "Stable Release: Step 91 with Excel export
+
+Features:
+- Excel export functionality
+- All smoke tests passing
+- Documentation updated
+
+Breaking Changes:
+- None
+
+Known Issues:
+- Large datasets (>500 units) may be slow"
+
+# Push tag to GitHub
+git push origin main --tags
+```
+
+#### 4. Never Edit Old Steps
+**Important**: Once a Step is committed and tagged:
+- ❌ Never modify the Step file itself
+- ✅ Create a new Step for fixes/changes
+- ✅ Keep old Steps for historical reference
+- ✅ Update README to point to latest stable
+
+#### 5. Stable Release Checklist
+Before tagging as stable:
+- [ ] All smoke tests pass (`npm run test`)
+- [ ] Manual smoke check completed
+- [ ] Code quality checks pass (`npm run lint`, `npm run format:check`)
+- [ ] Module boundary tests pass (`npm run test:boundaries`)
+- [ ] README updated with new "Current stable" reference
+- [ ] CHANGELOG.md updated with release notes
+- [ ] No console errors in browser
+- [ ] Previous functionality verified intact
+- [ ] Documentation reflects current state
+
+#### 6. Versioning Convention
+Use [Semantic Versioning](https://semver.org/):
+- **Major** (v2.0.0): Breaking changes, major architecture shifts
+- **Minor** (v1.1.0): New features, no breaking changes
+- **Patch** (v1.0.1): Bug fixes only
+
+#### Example: Promoting Step 90
+```bash
+# 1. Update README.md
+sed -i '' 's/Step 89E/Step 90/g' README.md
+
+# 2. Add CHANGELOG entry
+cat >> CHANGELOG.md << 'EOF'
+
+## [1.0.0] - 2025-10-22
+
+### Added - Step 90: Repo hygiene & guardrails upgrade
+- Playwright smoke tests
+- ESLint and Prettier
+- JSON schemas for data validation
+- PR template and workflow docs
+EOF
+
+# 3. Commit documentation updates
+git add README.md CHANGELOG.md
+git commit -m "docs: promote Step 90 to stable v1.0.0"
+
+# 4. Tag the release
+git tag -a v1.0.0-stable -m "Stable baseline with testing infrastructure"
+
+# 5. Push to GitHub
+git push origin main --tags
+```
+
 ---
 
 ## Quality Gates

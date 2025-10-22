@@ -1,0 +1,188 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://thorpe-management.com/schemas/fpResults.schema.json",
+  "title": "Floorplan Pricing Results",
+  "description": "Schema for calculated floorplan baseline pricing by term",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["code", "name", "baseRent", "terms"],
+    "properties": {
+      "code": {
+        "type": "string",
+        "description": "Short floorplan code (e.g., 'S0', 'A1', 'B2')",
+        "pattern": "^[A-Z0-9]+$",
+        "examples": ["S0", "A1", "B2", "C3"]
+      },
+      "name": {
+        "type": "string",
+        "description": "Full floorplan display name",
+        "examples": ["Studio", "1x1", "2x2", "3x2"]
+      },
+      "baseRent": {
+        "type": "number",
+        "description": "Base rent anchor for this floorplan (reference base)",
+        "minimum": 0,
+        "examples": [1300, 1750, 2100, 2500]
+      },
+      "referenceBase": {
+        "type": "number",
+        "description": "Reference base rent after comfort adjustments",
+        "minimum": 0,
+        "examples": [1305, 1755, 2110]
+      },
+      "referenceTerm": {
+        "type": "number",
+        "description": "Reference term in months (typically 12)",
+        "minimum": 1,
+        "maximum": 24,
+        "examples": [12, 14]
+      },
+      "terms": {
+        "type": "array",
+        "description": "Pricing by term length",
+        "items": {
+          "type": "object",
+          "required": ["term", "price"],
+          "properties": {
+            "term": {
+              "type": "number",
+              "description": "Lease term in months",
+              "minimum": 2,
+              "maximum": 24,
+              "examples": [2, 6, 12, 14]
+            },
+            "price": {
+              "type": "number",
+              "description": "Monthly rent for this term",
+              "minimum": 0,
+              "examples": [1350, 1300, 1305]
+            },
+            "premiumPct": {
+              "type": "number",
+              "description": "Premium percentage vs reference term",
+              "examples": [0, 3.8, -2.5]
+            },
+            "isReference": {
+              "type": "boolean",
+              "description": "True if this is the reference term (typically 12mo)",
+              "examples": [true, false]
+            }
+          }
+        },
+        "minItems": 1
+      },
+      "guardrails": {
+        "type": "object",
+        "description": "Applied guardrail constraints",
+        "properties": {
+          "minPrice": {
+            "type": "number",
+            "description": "Hard floor price (cannot go below)"
+          },
+          "maxPrice": {
+            "type": "number",
+            "description": "Hard ceiling price (cannot go above)"
+          },
+          "tierGap": {
+            "type": "number",
+            "description": "Minimum gap maintained above lower tier"
+          }
+        }
+      },
+      "comfort": {
+        "type": "object",
+        "description": "Comfort band adjustments applied",
+        "properties": {
+          "bandLowPct": {
+            "type": "number",
+            "description": "Band low percentage",
+            "examples": [-5, -3]
+          },
+          "bandHighPct": {
+            "type": "number",
+            "description": "Band high percentage",
+            "examples": [5, 3]
+          },
+          "appliedAdjustment": {
+            "type": "number",
+            "description": "Dollar adjustment applied",
+            "examples": [0, 5, -10]
+          }
+        }
+      },
+      "counts": {
+        "type": "object",
+        "description": "Unit counts for this floorplan",
+        "properties": {
+          "total": {
+            "type": "number",
+            "minimum": 0
+          },
+          "vacant": {
+            "type": "number",
+            "minimum": 0
+          },
+          "occupied": {
+            "type": "number",
+            "minimum": 0
+          },
+          "onNotice": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "minItems": 1,
+  "examples": [
+    [
+      {
+        "code": "S0",
+        "name": "Studio",
+        "baseRent": 1300,
+        "referenceBase": 1305,
+        "referenceTerm": 12,
+        "terms": [
+          {
+            "term": 2,
+            "price": 1350,
+            "premiumPct": 3.4,
+            "isReference": false
+          },
+          {
+            "term": 12,
+            "price": 1305,
+            "premiumPct": 0,
+            "isReference": true
+          },
+          {
+            "term": 14,
+            "price": 1300,
+            "premiumPct": -0.4,
+            "isReference": false
+          }
+        ],
+        "guardrails": {
+          "minPrice": 1200,
+          "maxPrice": 1500,
+          "tierGap": 150
+        },
+        "comfort": {
+          "bandLowPct": -5,
+          "bandHighPct": 5,
+          "appliedAdjustment": 5
+        },
+        "counts": {
+          "total": 50,
+          "vacant": 5,
+          "occupied": 40,
+          "onNotice": 5
+        }
+      }
+    ]
+  ]
+}
+
