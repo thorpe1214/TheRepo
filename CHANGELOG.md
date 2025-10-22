@@ -24,6 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Step 94: Unit-level Details expand/collapse with accessibility + Playwright test
+- **Expand Button**: Fixed unit-level expand button functionality (previously non-functional)
+- **Detail Overlay**: Implemented proper openUnitDetail/closeUnitDetail functions
+- **Accessibility**: Added full ARIA attributes (`aria-expanded`, `aria-controls`, `type="button"`)
+- **Keyboard Support**: Enter/Space keys activate expand buttons
+- **Event Delegation**: Safe re-render with delegated click handlers on `#unitPricingSection`
+- **Playwright Tests**: Added `tests/unit-details.spec.ts` to verify DOM structure and accessibility
+- **CI Integration**: Unit details tests now run automatically on PRs
+- **Documentation**: Added troubleshooting section to README for unit details
+- **No Behavior Change**: No changes to pricing logic or renewals
+
 ### Changed - Step 92: Rename baseline step file for clarity
 - **File Rename**: Renamed `Step 89E — architecture boundaries + docs (no behavior change).html` to `Step 89E — Stable Baseline (manual testing).html`
 - **Documentation Updates**: Updated README.md, WORKFLOW.md, and other docs to reference new filename

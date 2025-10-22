@@ -1,26 +1,30 @@
-(function(){
+(function () {
   // History snapshot and export functions
   window.__RM_LOADED = window.__RM_LOADED || [];
   window.__RM_LOADED.push('history.js');
   const listEl = document.getElementById('historyList');
   const clearBtn = document.getElementById('clearHistoryBtn');
 
-  function formatKind(k){ return k==='new' ? 'New' : (k==='renew' ? 'Renew' : String(k||'')); }
+  function formatKind(k) {
+    return k === 'new' ? 'New' : k === 'renew' ? 'Renew' : String(k || '');
+  }
 
-  function loadHistory(){
-    try{
+  function loadHistory() {
+    try {
       const raw = localStorage.getItem('rm:history');
       return raw ? JSON.parse(raw) : [];
-    }catch(e){ return []; }
+    } catch (e) {
+      return [];
+    }
   }
 
-  function saveHistory(list){
-    try{
-      localStorage.setItem('rm:history', JSON.stringify(list||[]));
-    }catch(e){}
+  function saveHistory(list) {
+    try {
+      localStorage.setItem('rm:history', JSON.stringify(list || []));
+    } catch (e) {}
   }
 
-  function addHistoryItem(kind, timestamp, summary){
+  function addHistoryItem(kind, timestamp, summary) {
     const list = loadHistory();
     const item = { kind, timestamp, summary };
     list.unshift(item);
@@ -29,14 +33,16 @@
     renderHistory();
   }
 
-  function renderHistory(){
+  function renderHistory() {
     if (!listEl) return;
     const list = loadHistory();
-    if (!list.length){
+    if (!list.length) {
       listEl.innerHTML = '<div class="note">No history yet.</div>';
       return;
     }
-    listEl.innerHTML = list.map(item => `
+    listEl.innerHTML = list
+      .map(
+        item => `
       <div class="card" style="margin-bottom:8px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <div>
@@ -48,33 +54,37 @@
           </div>
         </div>
       </div>
-    `).join('');
+    `
+      )
+      .join('');
   }
 
-  function clearHistory(){
+  function clearHistory() {
     if (!confirm('Clear all history?')) return;
     saveHistory([]);
     renderHistory();
   }
 
-  function exportHistory(){
+  function exportHistory() {
     const list = loadHistory();
-    if (!list.length){
+    if (!list.length) {
       alert('No history to export.');
       return;
     }
-    
+
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(list.map(item => ({
-      Kind: formatKind(item.kind),
-      Timestamp: new Date(item.timestamp).toLocaleString(),
-      Summary: item.summary || 'Run completed'
-    })));
+    const ws = XLSX.utils.json_to_sheet(
+      list.map(item => ({
+        Kind: formatKind(item.kind),
+        Timestamp: new Date(item.timestamp).toLocaleString(),
+        Summary: item.summary || 'Run completed',
+      }))
+    );
     XLSX.utils.book_append_sheet(wb, ws, 'History');
     XLSX.writeFile(wb, 'revenue_management_history.xlsx');
   }
 
-  function initHistory(){
+  function initHistory() {
     if (clearBtn) clearBtn.addEventListener('click', clearHistory);
     renderHistory();
   }

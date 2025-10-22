@@ -38,6 +38,9 @@ jobs:
       - name: Run Playwright smoke tests
         run: npm run smoke
 
+      - name: Run Playwright unit details tests
+        run: npm run test:unit-details
+
       - name: Upload test report on failure
         if: failure()
         uses: actions/upload-artifact@v4

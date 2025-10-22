@@ -384,6 +384,25 @@ Think of the app as a **spreadsheet with a brain**:
 
 ---
 
+## Troubleshooting UI Interactions
+
+### Unit Details Expand/Collapse
+The unit-level detail expand/collapse feature allows you to view additional information about each unit:
+
+- **Location**: Click the ▼ button in the rightmost column of any unit row in the Unit Pricing table
+- **Implementation**: Event delegation on `#unitPricingSection` handles all expand buttons
+- **Data Attributes**: Each button has `data-unit` attribute linking to unit ID
+- **Accessibility**: Full keyboard support (Enter/Space) and ARIA attributes (`aria-expanded`, `aria-controls`)
+- **Detail Box**: Modal overlay (`#unitDetailBox`) shows unit details with close button (X or Escape key)
+
+**If expand buttons don't work:**
+1. Check that unit pricing section has rendered with unit rows
+2. Verify `#unitDetailBox` element exists in DOM
+3. Ensure event delegation is wired after rendering
+4. Check browser console for JavaScript errors
+
+---
+
 ## Known Issues & Limitations
 
 ### Current Limitations
