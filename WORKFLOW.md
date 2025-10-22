@@ -34,7 +34,7 @@ Step [N] — [brief description].html
 
 Examples:
 - `Step 87 — Unit term detail box + right-side toggle.html`
-- `Step 89E — architecture boundaries + docs (no behavior change).html`
+- `Step 89E — Stable Baseline (manual testing).html`
 
 ### What Constitutes a "Step"?
 ✅ **Good Steps** (atomic, testable):
@@ -83,7 +83,7 @@ Cursor receives prompt → Implements → Saves new Step file
 
 ```bash
 # 1. Open the new Step file in browser
-open "Step 89E — architecture boundaries + docs (no behavior change).html"
+open "Step 89E — Stable Baseline (manual testing).html"
 
 # 2. Run manual smoke test checklist
 # (See CONTRIBUTING.md for full checklist)
@@ -103,7 +103,7 @@ open "Step 89E — architecture boundaries + docs (no behavior change).html"
 
 ```bash
 git add .
-git commit -m "feat: Step 89E - architecture boundaries + docs"
+git commit -m "feat: Step 89E - stable baseline for manual testing"
 git push origin main
 ```
 
@@ -114,7 +114,7 @@ git push origin main
 ### Active Development
 ```
 /Users/brennanthorpe/Desktop/Thorpe Management/
-├── Step 89E — architecture boundaries + docs.html  ← Current stable
+├── Step 89E — Stable Baseline (manual testing).html  ← Current stable
 ├── Step 89F — [next feature].html                  ← New work
 ├── src/js/                                          ← Shared JS modules
 ├── assets/                                          ← Shared assets
@@ -122,7 +122,7 @@ git push origin main
 ```
 
 ### Step File Lifecycle
-1. **Current Stable**: Latest verified working version (e.g., `Step 89E`)
+1. **Current Stable**: Latest verified working version (e.g., `Step 89E — Stable Baseline`)
 2. **In Progress**: New file being developed (e.g., `Step 89F`)
 3. **Archive**: Previous steps kept for history (never deleted)
 
@@ -263,7 +263,7 @@ main              ← Stable, tested steps only
 
 ### Example Commit History
 ```
-feat: Step 89E - architecture boundaries + docs
+feat: Step 89E - stable baseline for manual testing
 fix: Step 89D - floorplan code mapping bug
 refactor: Step 89C - externalize unit pricing
 feat: Step 89B - externalize app boot logic
@@ -276,7 +276,7 @@ When a Step represents a significant milestone and all tests pass, promote it to
 #### 1. Update Documentation
 ```bash
 # Update README.md "Current stable" reference
-# Change from: Step 89E — architecture boundaries + docs.html
+# Change from: Step 89E — Stable Baseline (manual testing).html
 # To:          Step 90 — Repo hygiene & guardrails upgrade.html
 ```
 
