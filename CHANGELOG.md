@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed - Step 92: Rename baseline step file for clarity
+- **File Rename**: Renamed `Step 89E — architecture boundaries + docs (no behavior change).html` to `Step 89E — Stable Baseline (manual testing).html`
+- **Documentation Updates**: Updated README.md, WORKFLOW.md, and other docs to reference new filename
+- **No Behavior Change**: Pure file rename for clarity; all functionality preserved
+- **Purpose**: Makes the role of Step 89E as the stable baseline for manual testing more obvious
+
 ## [1.1.0] - 2025-10-22
 
 ### Added - Step 91: CI smoke on PRs with badges
