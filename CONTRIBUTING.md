@@ -1,0 +1,618 @@
+# Contributing Guide
+
+## Welcome! 🎉
+
+Thank you for contributing to the Revenue Management System. This guide will help you understand our development process and quality standards.
+
+---
+
+## Core Principles
+
+### 1. No Behavior Change (Unless Stated)
+**Default assumption**: All changes preserve existing functionality exactly.
+
+✅ **Allowed by default**:
+- Code refactoring (same input → same output)
+- Moving code to new files (zero behavior change)
+- Adding documentation
+- Fixing bugs (with clear before/after description)
+
+⚠️ **Requires explicit approval**:
+- Changing calculation logic
+- Modifying UI behavior
+- Altering data structures
+- Adding/removing features
+
+### 2. One Small Step at a Time
+Each Step file should be:
+- **Atomic**: Complete and self-contained
+- **Testable**: Can be verified independently
+- **Reversible**: Can roll back without breaking system
+
+### 3. Test Before Commit
+Never commit code that hasn't passed the smoke check.
+
+---
+
+## Commit Message Format
+
+We use **Conventional Commits** for clear, structured commit history.
+
+### Format
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
+```
+
+### Types
+
+#### **feat**: New feature or enhancement
+```bash
+git commit -m "feat: add CSV column validation"
+git commit -m "feat(pricing): implement term premium calculator"
+git commit -m "feat: Step 90 - add unit detail overlay"
+```
+
+#### **fix**: Bug fix
+```bash
+git commit -m "fix: resolve floorplan code mapping issue"
+git commit -m "fix(unit-pricing): handle empty amenity adjustments"
+git commit -m "fix: Step 89E - floorplan code matching"
+```
+
+#### **refactor**: Code restructuring (no behavior change)
+```bash
+git commit -m "refactor: extract pricing helpers to separate file"
+git commit -m "refactor(app-boot): simplify initialization logic"
+git commit -m "refactor: Step 89C - externalize unit pricing"
+```
+
+#### **docs**: Documentation only
+```bash
+git commit -m "docs: update README with architecture section"
+git commit -m "docs: add inline comments to pricing-fp.js"
+git commit -m "docs: create WORKFLOW.md and CONTRIBUTING.md"
+```
+
+#### **style**: Code style changes (formatting, whitespace)
+```bash
+git commit -m "style: fix indentation in pricing-unit.js"
+git commit -m "style: remove trailing whitespace"
+```
+
+#### **test**: Adding or updating tests
+```bash
+git commit -m "test: add smoke test for unit pricing"
+git commit -m "test: create automated test suite"
+```
+
+#### **chore**: Maintenance tasks
+```bash
+git commit -m "chore: update .gitignore"
+git commit -m "chore: remove deprecated Step files"
+```
+
+#### **perf**: Performance improvements
+```bash
+git commit -m "perf: optimize unit rendering for large datasets"
+git commit -m "perf(floorplan): cache calculation results"
+```
+
+### Scopes (Optional)
+Add scope to specify which module/area changed:
+- `pricing-fp`: Floorplan pricing
+- `pricing-unit`: Unit pricing
+- `pricing-helpers`: Shared utilities
+- `app-boot`: Application initialization
+- `ui`: User interface
+- `data`: Data structures or flow
+
+### Examples
+
+#### Simple commit
+```bash
+git commit -m "feat: Step 91 - add export to Excel"
+```
+
+#### Detailed commit
+```bash
+git commit -m "fix(pricing-unit): resolve floorplan code mismatch
+
+Unit pricing was not rendering due to floorplan code format mismatch.
+CSV contains full names like 'S0 - Studio' but index uses short codes
+like 'S0'.
+
+Solution: Extract short code before lookup using split(' - ')[0].
+
+Fixes: #42"
+```
+
+#### Breaking change
+```bash
+git commit -m "feat(pricing)!: change calculation method for term premiums
+
+BREAKING CHANGE: Term premium calculation now uses exponential curve
+instead of linear taper. Existing pricing results will differ.
+
+Migration: Re-run 'Run New' to generate updated pricing with new logic."
+```
+
+---
+
+## Manual Smoke Check Checklist
+
+Run this checklist **before every commit**. All items must pass.
+
+### 🟢 Critical Path (Must Pass)
+
+#### 1. Page Load
+```
+[ ] Page loads without JavaScript errors
+[ ] All CSS/JS files load successfully
+[ ] No 404 errors in Network tab
+[ ] Page renders within 3 seconds
+```
+
+#### 2. CSV Upload & Mapping
+```
+[ ] "Choose File" button works
+[ ] CSV file uploads successfully
+[ ] Column mapping auto-detects correctly
+[ ] "Confirm Mapping" saves successfully
+[ ] Rent roll data visible in UI (occupancy stats update)
+```
+
+#### 3. Settings Persistence
+```
+[ ] Navigate to Settings tab
+[ ] Modify a floorplan setting (e.g., Band Low %)
+[ ] Refresh page
+[ ] Verify setting persisted (same value after refresh)
+[ ] Check floorplan map is saved
+```
+
+#### 4. New Pricing - Floorplan View
+```
+[ ] Click "Run New" button
+[ ] Navigate to New Pricing tab
+[ ] Verify Floorplan Pricing is default view
+[ ] All floorplan cards render (S0, A1, B2, etc.)
+[ ] Pricing tables show all term rows (2-14 months)
+[ ] Reference base and term display correctly
+[ ] Debug info shows (if enabled)
+```
+
+#### 5. New Pricing - Unit View
+```
+[ ] Click "Unit Pricing" tab
+[ ] Unit table renders with data
+[ ] Search box is present and functional
+[ ] Vacant checkbox filters correctly
+[ ] On Notice checkbox filters correctly
+[ ] Units grouped by floorplan code
+[ ] Proposed pricing displays for each unit
+[ ] Delta (Δ) calculations are correct
+```
+
+#### 6. Renewals
+```
+[ ] Navigate to Renewals tab
+[ ] Renewal pricing table renders
+[ ] Current rent vs proposed shown
+[ ] Percentage increases/decreases calculated
+[ ] Min/max guardrails applied
+```
+
+#### 7. Charts
+```
+[ ] Navigate to Charts tab
+[ ] Occupancy trend chart renders
+[ ] No JavaScript errors
+[ ] Data displays correctly
+```
+
+#### 8. History
+```
+[ ] Navigate to History tab
+[ ] No errors or crashes
+[ ] (Future: verify saved runs display)
+```
+
+#### 9. Console Check
+```
+[ ] Open browser DevTools (F12)
+[ ] Check Console tab
+[ ] Verify NO red errors
+[ ] [RM Guard] warnings are OK (dev-only)
+[ ] 404 for favicon.ico is OK (non-critical)
+```
+
+### 🟡 Feature-Specific Checks
+
+Run these based on what you changed:
+
+#### New UI Component
+```
+[ ] Component renders in correct location
+[ ] All interactive elements work (buttons, inputs, etc.)
+[ ] Component follows existing design patterns
+[ ] Mobile responsive (if applicable)
+[ ] Accessible (keyboard navigation, ARIA labels)
+```
+
+#### Data/Calculation Change
+```
+[ ] Verify output matches expected values
+[ ] Test edge cases (empty data, zero values, negatives)
+[ ] Compare with previous Step file output
+[ ] Document calculation logic in code comments
+```
+
+#### Refactor (Zero Behavior Change)
+```
+[ ] Run complete smoke check
+[ ] Compare output with previous Step
+[ ] Verify NO visual differences
+[ ] Verify NO calculation differences
+[ ] Check that all events still fire correctly
+```
+
+#### Bug Fix
+```
+[ ] Verify original bug is resolved
+[ ] Test the specific scenario that was broken
+[ ] Verify fix doesn't introduce new bugs
+[ ] Add test case for regression prevention (future)
+```
+
+---
+
+## Code Quality Standards
+
+### JavaScript Style
+
+#### Prefer Vanilla JavaScript
+```javascript
+// ✅ Good
+document.getElementById('myElement');
+element.addEventListener('click', handler);
+
+// ❌ Avoid
+$('#myElement');
+$(element).on('click', handler);
+```
+
+#### Use ES6+ Features
+```javascript
+// ✅ Good
+const units = [...filteredUnits];
+const { code, name } = floorplan;
+const result = units.filter(u => u.status === 'Vacant');
+
+// ❌ Avoid
+var units = filteredUnits.slice();
+var code = floorplan.code;
+var result = units.filter(function(u) { return u.status === 'Vacant'; });
+```
+
+#### Document Public APIs
+```javascript
+/**
+ * Render Unit Pricing Section
+ * 
+ * Purpose: Renders the unit-level pricing table with filters and pagination.
+ * 
+ * Public API: window.__renderUnitPricingSection()
+ * 
+ * Inputs:
+ *  - window.mappedRows (array): Rent roll data from CSV
+ *  - window.__npUnitsState (object): Filter/pagination state
+ * 
+ * Outputs:
+ *  - Populates #unitPricingSection DOM element
+ *  - Sets window.__npUnitsFiltered for detail overlay
+ * 
+ * Side Effects:
+ *  - Updates localStorage for state persistence
+ *  - Attaches event listeners to filter controls
+ */
+function renderUnitPricingSection() {
+  // Implementation...
+}
+```
+
+#### Handle Errors Gracefully
+```javascript
+// ✅ Good
+function buildFpIndex() {
+  try {
+    const results = window.__fpResults;
+    if (!results || !Array.isArray(results)) {
+      console.warn('No floorplan results available');
+      return new Map();
+    }
+    // Process results...
+  } catch (error) {
+    console.error('Error building floorplan index:', error);
+    return new Map();
+  }
+}
+
+// ❌ Avoid
+function buildFpIndex() {
+  const results = window.__fpResults;
+  // Assumes results exists and is valid
+  return results.map(r => /* ... */);
+}
+```
+
+### HTML/DOM Best Practices
+
+#### Semantic HTML
+```html
+<!-- ✅ Good -->
+<section class="card">
+  <header>
+    <h3>Floorplan S0</h3>
+  </header>
+  <table class="basic">
+    <thead>
+      <tr><th>Unit</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <!-- data rows -->
+    </tbody>
+  </table>
+</section>
+
+<!-- ❌ Avoid -->
+<div class="card">
+  <div class="title">Floorplan S0</div>
+  <div class="table">
+    <div class="row header">
+      <div>Unit</div><div>Status</div>
+    </div>
+    <!-- data rows -->
+  </div>
+</div>
+```
+
+#### Accessible Forms
+```html
+<!-- ✅ Good -->
+<label for="unitSearch">Search Units:</label>
+<input type="text" id="unitSearch" 
+       placeholder="Search unit or FP code"
+       aria-label="Search units by unit number or floorplan code">
+
+<!-- ❌ Avoid -->
+<input type="text" placeholder="Search">
+```
+
+### Performance Considerations
+
+#### Avoid N+1 Queries
+```javascript
+// ✅ Good - Build lookup once
+const fpIndex = buildFpIndex();
+units.forEach(u => {
+  const fp = fpIndex.get(u.floorplan_code);
+  // Use fp...
+});
+
+// ❌ Avoid - Lookup on every iteration
+units.forEach(u => {
+  const fp = findFloorplan(u.floorplan_code); // Searches array each time
+  // Use fp...
+});
+```
+
+#### Batch DOM Updates
+```javascript
+// ✅ Good - Single innerHTML assignment
+let html = '';
+items.forEach(item => {
+  html += `<div>${item}</div>`;
+});
+container.innerHTML = html;
+
+// ❌ Avoid - Multiple DOM manipulations
+items.forEach(item => {
+  container.innerHTML += `<div>${item}</div>`; // Reflows on each iteration
+});
+```
+
+---
+
+## Module Boundaries
+
+### Rules of Separation
+
+#### `pricing-helpers.js` (Utilities)
+✅ **Can**: Provide pure functions, format data, perform calculations  
+❌ **Cannot**: Access DOM, modify global state, call other modules
+
+#### `pricing-unit.js` (Unit Pricing)
+✅ **Can**: Render unit tables, use helpers, read floorplan index  
+❌ **Cannot**: Call floorplan rendering, modify floorplan baseline
+
+#### `pricing-fp.js` (Floorplan Pricing)
+✅ **Can**: Render floorplan tables, compute baselines, use helpers  
+❌ **Cannot**: Call unit rendering, access unit DOM directly
+
+#### `app-boot.js` (Application)
+✅ **Can**: Coordinate modules, manage navigation, handle CSV upload  
+❌ **Cannot**: Contain pricing logic, duplicate module responsibilities
+
+### Development Guards
+Use guards to enforce boundaries:
+
+```javascript
+// At end of pricing-unit.js
+if (window.__RM_DEV_GUARDS) {
+  window.__RM_DEV_GUARDS.assert(
+    typeof window.renderNewLease !== 'function',
+    'Unit code should not access floorplan rendering directly'
+  );
+}
+```
+
+---
+
+## Pull Request Process
+
+### Before Opening PR
+1. ✅ Complete smoke check (all items pass)
+2. ✅ Update documentation if needed
+3. ✅ Add descriptive commit message
+4. ✅ Verify no merge conflicts
+
+### PR Title Format
+Follow same convention as commits:
+```
+feat: Step 90 - Add unit detail overlay
+fix: Resolve floorplan mapping bug in Step 89E
+docs: Update ARCHITECTURE.md with data flow
+```
+
+### PR Description Template
+```markdown
+## Step Number
+Step 90
+
+## Type of Change
+- [ ] New feature
+- [x] Bug fix
+- [ ] Refactoring (no behavior change)
+- [ ] Documentation update
+
+## Description
+Brief description of what this Step accomplishes.
+
+## Changes Made
+- Modified `src/js/pricing-unit.js` - Added detail overlay logic
+- Updated `Step 89E.html` → `Step 90.html`
+- Added inline documentation
+
+## Testing Done
+- [x] All smoke check items pass
+- [x] Tested on Chrome, Firefox, Safari
+- [x] No console errors
+- [x] Previous functionality verified intact
+
+## Screenshots (if applicable)
+[Add screenshots for UI changes]
+
+## Related Issues
+Fixes #42
+Related to #35
+
+## Breaking Changes
+None / [Describe if any]
+
+## Notes for Reviewers
+[Any specific areas to focus on]
+```
+
+### Review Checklist
+Reviewer should verify:
+- [ ] Smoke check passed
+- [ ] Code follows style guide
+- [ ] Module boundaries respected
+- [ ] Documentation updated
+- [ ] Commit message follows convention
+- [ ] No regressions in functionality
+
+---
+
+## Getting Help
+
+### Questions About
+- **Requirements**: Ask User for clarification
+- **Implementation**: Ask ChatGPT for guidance
+- **Technical Issues**: Check docs, then ask team
+
+### Resources
+- `README.md`: Project overview and architecture
+- `ARCHITECTURE.md`: Detailed module documentation
+- `WORKFLOW.md`: Development process
+- Browser DevTools: Debugging and inspection
+
+---
+
+## Code of Conduct
+
+### Do's ✅
+- **Be clear**: Ask questions if requirements are unclear
+- **Be thorough**: Test changes completely before committing
+- **Be respectful**: Review feedback professionally
+- **Be collaborative**: Share knowledge and insights
+
+### Don'ts ❌
+- **Don't rush**: Quality over speed
+- **Don't assume**: Test even "obvious" changes
+- **Don't break**: Existing functionality without approval
+- **Don't bypass**: Smoke checks or review process
+
+---
+
+## Recognition
+
+Great contributions demonstrate:
+- ✨ Clean, readable code
+- 🧪 Thorough testing
+- 📚 Clear documentation
+- 🎯 Focused, atomic changes
+- 🤝 Collaborative spirit
+
+Thank you for maintaining our high standards! 🙌
+
+---
+
+## Quick Reference
+
+### Before You Start
+```bash
+# 1. Pull latest
+git pull origin main
+
+# 2. Create new Step file
+cp "Step 89E — [old].html" "Step 90 — [new].html"
+
+# 3. Make changes in Step 90
+```
+
+### After Implementation
+```bash
+# 1. Run smoke check (see checklist above)
+
+# 2. Stage changes
+git add .
+
+# 3. Commit with conventional format
+git commit -m "feat: Step 90 - [description]"
+
+# 4. Push to GitHub
+git push origin main
+```
+
+### If Something Breaks
+```bash
+# 1. Check console for errors
+# 2. Compare with previous Step
+# 3. Fix and re-test
+# 4. Document what went wrong
+```
+
+---
+
+*Questions? Check WORKFLOW.md or ask the team!*
+
+---
+
+*Last Updated: October 22, 2025*  
+*Version: 1.0*
+
