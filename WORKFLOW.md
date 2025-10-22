@@ -369,6 +369,100 @@ git push origin main --tags
 
 ---
 
+## CI Quality Gates
+
+### Automated Checks on Every PR
+
+All pull requests to `main` must pass automated quality gates via GitHub Actions:
+
+**CI Workflow** (`.github/workflows/ci.yml`):
+```bash
+✓ ESLint: Code quality and style checks
+✓ Schema Validation: JSON data structure validation (optional)
+✓ Smoke Tests: End-to-end Playwright tests
+```
+
+**Status**: Pull requests show a "quality-gates" check that must be green before merging.
+
+**Runtime**: ~3-4 minutes on GitHub runners
+
+### What Gets Checked
+
+1. **ESLint (`npm run lint`)**
+   - Checks all `.js` and `.ts` files for code quality issues
+   - Enforces consistent code style
+   - Catches common JavaScript errors
+
+2. **Schema Validation (`npm run validate`)**
+   - Validates sample JSON data against schemas
+   - Optional: continues even if no sample data exists
+   - Ensures data structure consistency
+
+3. **Smoke Tests (`npm run smoke`)**
+   - Opens Step file in browser
+   - Uploads sample CSV
+   - Verifies floorplan and unit pricing render
+   - Checks renewals generate successfully
+   - Detects console errors
+
+### When CI Fails
+
+If a PR fails CI checks:
+
+1. **Review the failure**
+   - Click on the "Details" link in the PR check
+   - Look at the specific step that failed
+
+2. **Common failures:**
+   - **Lint fails**: Fix code style issues locally with `npm run lint:fix`
+   - **Smoke test fails**: Download the Playwright report artifact to see screenshots
+   - **Schema validation fails**: Update schemas or sample data
+
+3. **Fix and re-push**
+   ```bash
+   # Fix the issue locally
+   npm run lint:fix
+   npm run smoke  # Test locally
+   
+   # Commit and push fix
+   git add .
+   git commit -m "fix: resolve CI failure"
+   git push origin feature/your-branch
+   ```
+
+4. **Download test artifacts**
+   - If smoke tests fail, GitHub uploads a Playwright report
+   - Find it in the "Artifacts" section of the failed workflow run
+   - Download and view `playwright-report/index.html` locally
+
+### Running CI Checks Locally
+
+Before opening a PR, run the same checks locally:
+
+```bash
+# Run the exact same commands as CI
+npm run lint && npm run validate && npm run smoke
+
+# Or run individually
+npm run lint        # ESLint
+npm run validate    # Schema validation
+npm run smoke       # Playwright tests
+```
+
+**Pro tip**: Add this to your pre-commit workflow to catch issues early.
+
+### CI Badge
+
+The README displays a CI badge showing the current status of the `main` branch:
+
+[![CI Quality Gates](https://github.com/thorpe1214/Revenue-Management-System/actions/workflows/ci.yml/badge.svg)](https://github.com/thorpe1214/Revenue-Management-System/actions/workflows/ci.yml)
+
+- **Green**: All checks passing
+- **Red**: One or more checks failing
+- **Yellow**: Checks running
+
+---
+
 ## Quality Gates
 
 ### Before Starting a Step

@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-10-22
+
+### Added - Step 91: CI smoke on PRs with badges
+- **GitHub Actions CI/CD**
+  - Created `.github/workflows/ci.yml` workflow
+  - Runs on all pull requests and pushes to main
+  - Job name: "quality-gates" with readable step names
+  - Triggers: ESLint, schema validation, smoke tests
+  - Uploads Playwright report artifact on failure
+  - Uses Node 20, ubuntu-latest, npm caching
+  - Expected runtime: ~3-4 minutes
+  
+- **CI Badge**
+  - Added CI status badge to README.md header
+  - Links to GitHub Actions workflow page
+  - Shows real-time build status (passing/failing)
+  
+- **Documentation Updates**
+  - WORKFLOW.md: Added "CI Quality Gates" section
+    - Explains what gets checked (lint, validate, smoke)
+    - How to run locally before PR
+    - What to do when CI fails
+    - How to download Playwright report artifacts
+  - CONTRIBUTING.md: Added "CI/CD Integration" section
+    - Run same checks locally: `npm run lint && npm run validate && npm run smoke`
+    - CI check status indicators (green/red/yellow)
+    - Artifact download instructions
+  - README.md: Added CI gate command to "Run Tests" section
+  
+### Changed
+- No behavior changes in pricing logic
+- All checks are additive and non-breaking
+
+### Technical Details
+- Workflow file: `.github/workflows/ci.yml`
+- Job timeout: 10 minutes
+- Playwright browsers: chromium only (with-deps)
+- Schema validation continues on error (optional if no sample data)
+- Test report retention: 7 days
+
+---
+
 ## [1.0.0] - 2025-10-22
 
 ### Added - Step 90: Repo hygiene & guardrails upgrade

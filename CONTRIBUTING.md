@@ -721,6 +721,57 @@ Thank you for maintaining our high standards! 🙌
 
 ---
 
+## CI/CD Integration
+
+### Automated Quality Gates
+
+All pull requests automatically run quality checks via GitHub Actions:
+
+**The CI workflow runs:**
+```bash
+npm run lint        # ESLint checks
+npm run validate    # Schema validation (optional)
+npm run smoke       # Playwright tests
+```
+
+**Before opening a PR**, run the same checks locally:
+```bash
+# Run all CI checks locally
+npm run lint && npm run validate && npm run smoke
+
+# Or fix issues automatically
+npm run lint:fix
+```
+
+**Expected runtime**: ~3-4 minutes on GitHub Actions
+
+### CI Check Status
+
+Pull requests show a **"Quality Gates"** check:
+- ✅ **Green**: All checks passed, ready to merge
+- ❌ **Red**: One or more checks failed, needs fixes
+- 🟡 **Yellow**: Checks are running
+
+### If CI Fails
+
+1. **Click "Details"** on the failed check to see what broke
+2. **Common fixes:**
+   - Lint errors: `npm run lint:fix`
+   - Test failures: Download Playwright report artifact from GitHub
+   - Schema errors: Update schemas or sample data
+3. **Test locally** before pushing again
+4. **Push fix**: CI will automatically re-run
+
+### Artifacts on Failure
+
+When smoke tests fail, CI uploads a Playwright report:
+- Go to the failed workflow run on GitHub
+- Scroll to "Artifacts" section
+- Download `playwright-report`
+- Open `index.html` to see screenshots and error details
+
+---
+
 ## Quick Reference
 
 ### Before You Start

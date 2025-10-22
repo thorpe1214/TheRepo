@@ -22,7 +22,7 @@ Our long-term goal is a SaaS platform with multi-property support, logins, and P
 
 - **Visionary (User)**: Revenue management expert. Defines rules, bands, business reality. No coding required.  
 - **Project Manager (ChatGPT)**: SaaS strategist. Sharpens ideas, pushes back when needed, translates into Codex briefs. Never writes HTML directly.  
-- **Engineer (Codex)**: Senior dev. Executes briefs exactly, produces one new file per step.  
+- **Engineer (cursor)**: Senior dev. Executes briefs exactly, produces one new file per step.  
 
 **Principles:**
 1. One small change per step (Step NN). Never overwrite.  

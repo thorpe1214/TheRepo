@@ -1,5 +1,7 @@
 # Revenue Management System (RMS)
 
+[![CI Quality Gates](https://github.com/thorpe1214/Revenue-Management-System/actions/workflows/ci.yml/badge.svg)](https://github.com/thorpe1214/Revenue-Management-System/actions/workflows/ci.yml)
+
 ## Overview
 The Revenue Management System is a browser-based application designed to calculate and manage apartment pricing at both the **floorplan** and **unit** level. The goal is to give operators transparent, math-first controls over rent pricing, renewals, and guardrails, without relying on black-box algorithms.
 
@@ -27,7 +29,7 @@ This system is built on three core principles:
 ### Current Structure
 ```
 /Users/brennanthorpe/Desktop/Thorpe Management/
-├── Step 90 — Repo hygiene & guardrails upgrade.html  # Latest production-ready version
+├── Step 91 — CI smoke on PRs with badges.html  # Latest production-ready version
 ├── src/
 │   └── js/
 │       ├── pricing-helpers.js     # Shared utilities (formatMoney, dates, etc.)
@@ -146,6 +148,9 @@ npm run test:boundaries
 # Check code quality
 npm run lint
 npm run format:check
+
+# Run complete CI gate checks (same as GitHub Actions)
+npm run lint && npm run validate && npm run smoke
 ```
 
 **Expected test runtime**: <10 seconds for all tests
