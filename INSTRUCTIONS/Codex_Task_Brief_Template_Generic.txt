@@ -1,0 +1,55 @@
+Codex Task Brief Template (Generic Layout)
+
+0. Context
+- Project: [Name]
+- Codebase: [Language/Framework, stack versions]
+- Current state: [What the codebase currently does / where we’re starting]
+- Branch/Commit baseline: [Branch or commit reference]
+
+1. Goal
+- Feature/Fix: [Clear 1-sentence summary]
+- Why: [Business/user need driving it]
+
+2. Scope
+- In scope: [What is included]
+- Out of scope: [What is excluded]
+
+3. Dependencies / Pre-conditions
+- [List any environment setups, migrations, or prerequisites]
+
+4. Requirements (Acceptance Criteria)
+- [ ] Functional: [Behavior details]
+- [ ] UX: [User interface/look & feel]
+- [ ] Rules/Guardrails: [Constraints]
+- [ ] Verification: [How success is validated]
+
+5. Steps for Codex Agent
+1. Open and edit file(s): [list specific files]
+2. Implement changes according to requirements above
+3. Run tests using: [command]
+4. Provide output: file diff, test results, summary of changes
+
+6. Tools / Environment
+- Build/test commands: [npm test, pytest, etc.]
+- Stack versions: [Node v18, Python 3.11, etc.]
+- Branching/conventions: [feature branch naming, PR target]
+
+7. Definition of Done / Success Criteria
+- [List criteria such as: All tests pass, new feature covered by tests, no lint errors, etc.]
+
+8. Review & Rollback
+- Review guidelines: [style/quality checks]
+- Rollback strategy: [how to revert or branch strategy]
+
+9. Deliverables
+- [ ] File diff (before/after)
+- [ ] Test/log output
+- [ ] Summary of changes + rationale
+
+---
+Reminder:
+- Codex Agent = OpenAI’s software-engineering agent (powered by codex-1, a version of o3 optimized for software engineering). 
+- It can read/write files, run tests in sandbox, provide diffs/logs, and commit to GitHub. 
+- GPT-5 (this chat) = strategy, explanation, QA. Codex-1 = execution (coding, testing, commits).
+
+Use this template when prompting Codex for ANY project or task.

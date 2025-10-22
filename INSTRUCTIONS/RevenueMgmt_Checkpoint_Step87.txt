@@ -1,0 +1,66 @@
+# Revenue Management Project — Checkpoint (Step 87.2 Pre-Patch)
+
+## Current State
+- **Latest File**: Step 87.1 — Unit detail box click fix.html (attempted, issue with arrow click still not fixed).
+- **Latest Codex Prompt**: Step 87.2 — Unit detail click harden + overlay fix (ready to apply to fix arrow click).
+
+## Features Implemented (so far)
+1. **Floorplan Pricing (Default Tab)**: 
+   - Shows all floorplan-level pricing calculations.
+   - Uses comfort bands, community/floorplan rules, premiums, caps, and guardrails.
+
+2. **Unit Pricing (Sub-Tab)**:
+   - Displays unit-level pricing rows mapped from rent roll.
+   - Shows only available units: *Vacant Unrented* and *On Notice Unrented*.
+   - Includes search, filters, paging.
+
+3. **Vacant Days**:
+   - Calculated from “lease end” column to today when “vacant days” column missing.
+
+4. **Amenity Adjustments**:
+   - Unit pricing includes amenity adjustments (+/- amounts) from rent roll.
+   - “Amenities” column shows adjustments with + or -.
+
+5. **Tabs**:
+   - Floorplan Pricing and Unit Pricing as two subtabs under “New Pricing”.
+   - Floorplan Pricing defaults when entering New Pricing tab.
+
+6. **Unit Detail Expansion**:
+   - Right-side ▼ arrow to expand per-unit term grid.
+   - Term grid shows Proposed price, Δ $ vs current, Δ % vs current for 2–14 months.
+   - Overlay card appears fixed on the right.
+
+7. **History/Charts/Other Tabs** (from earlier steps):
+   - Existing functionality preserved (History, Renewals, Settings, Charts).
+
+## Issues Fixed in Recent Steps
+- Unit filters fixed (vacant/unrented only).
+- Amenity adjustments correctly applied.
+- Vacant days calculation added.
+- Default tab set to Floorplan Pricing when opening New Pricing.
+- Detail box overlay styled (but click wiring still faulty).
+
+## Current Issue
+- Clicking ▼ does not open detail box (arrays lookups failing).  
+- Step 87.2 prompt prepared to fix: change to row dataset attributes + fixed overlay.
+
+## Next Step
+- Apply Step 87.2 Codex prompt to “Step 87.1 — Unit detail box click fix.html”.
+- Output new file: “Step 87.2 — Unit detail click harden + overlay fix.html”.
+- Verify ▼ arrow opens detail box immediately with correct term grid.
+
+## Collaboration Workflow
+- Always start from latest step file.
+- One small change per step → new file.
+- Prompts written in professional Codex template (enumerated, acceptance criteria, etc.).
+- Checkpoint saved whenever major milestone is reached.
+
+---
+
+# Notes for Future Continuation
+- Resume from Step 87.2.
+- If detail box works, continue to refine:
+  - Expand/close UX polish.
+  - Possibly inline expansion under row instead of overlay (future option).
+- Keep tracking “Starting Rent” vs “Current Rent” logic for unit details.
+- History/Exports must reflect new unit-level data eventually.

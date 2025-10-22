@@ -1,0 +1,76 @@
+
+Revenue Management Project — Full Context for Resuming Work
+
+PROJECT PURPOSE
+This is a rules-based SaaS revenue management system for multifamily apartment pricing. 
+It dynamically adjusts new-lease and renewal rents based on occupancy trends, floorplan buffers, guardrails, and operator-defined settings. 
+Operators should see transparent math, clear explanations ("chips" for reasons), and have the ability to approve/override changes.
+
+WORKING FILES & CHECKPOINTS
+- Current stable checkpoint: Step 75 — Enforce Min Tier Gap (uplift-only).html
+- Step 76 (Remove Buffer Column) showed errors, so we rolled back to Step 75 as the safe base.
+- Step 77 (Unit Pricing under Floorplans) is planned but not implemented yet — prompt written and saved in senior FE template.
+
+KEY LOGIC (CURRENT)
+1. Single-threshold Comfort Target drives trend-based increases/decreases.
+2. Floorplan pricing respects global occupancy, floorplan-level bands, and guardrails (floors, ceilings, min tier gaps).
+3. Min Tier Gap: ensures higher-bedroom floorplans are always at least X$ above lower tiers.
+4. Current pricing adjustments are made against the most recent accepted "base rent," not the original starting rent (future work: approvals flow).
+5. History intended to show global average pricing and floorplan-level pricing over time.
+
+UI / TABS
+- Home: Run controls, settings toggle, run new pricing button.
+- New Pricing: Floorplan-level pricing results; (Step 77 will add unit-level pricing).
+- Renewals: Renewal pricing logic with percent-to-new and guardrails.
+- Settings: Configuration for comfort band, caps, min tier gap, etc.
+- History: Tracks past runs, to show trend lines over time.
+
+RECENTLY IMPLEMENTED
+- Floorplan min tier gap is working (uplift-only, ensures proper spread between FPs).
+- Floors, ceilings, and buffers functioning correctly as of Step 75.
+- Debug lines for operators show math (for internal use), chips are planned for customer-facing view.
+
+PLANNED NEXT STEPS
+1. Step 77: Add "Show available units" option under New Pricing.
+   - Checkbox toggle, persisted to localStorage.
+   - Groups by floorplan (Studio → 1BR → 2BR → 3/4BR).
+   - Within FP: Vacant longest first → On Notice earliest first.
+   - Shows Unit / FP / Status / Avail / Current / Proposed / Δ$ / Δ% / Notes.
+   - Scaffolding for “best price only” collapse in future.
+   - Minimal filters (search, status chips).
+
+2. Approval Workflow (future step after Step 77 is stable):
+   - When clicking "Run New," show a modal with FP-level changes.
+   - Show Base Rent, Proposed Rent, % up/down, emoji/arrow indicator.
+   - Operator can Approve, Reject, or Override (enter new base rent).
+   - Approvals update the "base rent" used for next run.
+
+3. History Tracking:
+   - Store past accepted pricing runs by property.
+   - Graph trends (global and FP-level).
+
+4. Multi-Rent-Roll Simulation:
+   - Upload multiple rent rolls sequentially for the same property.
+   - System continues pricing relative to the last approved rent, not starting rent.
+   - History shows cumulative pricing adjustments over time.
+
+CODING TEMPLATE
+- Use the **“You are a senior front end engineer…”** Codex prompt template for all future steps.
+- This ensures SaaS-quality workflow, accessibility, and best practices.
+
+NOTES FOR NEXT SESSION
+- Always start from the last good checkpoint (Step 75 currently).
+- Clear test state in browser before new runs:
+  ```js
+  localStorage.removeItem('rm_currentBase_v1');
+  localStorage.removeItem('rm_approvalEnabled_v1');
+  localStorage.removeItem('np_showUnits_v1');
+  ```
+- Verify floors, ceilings, and min tier gap still work after any new feature is added.
+- Build incrementally: one feature per step, one new output file per step.
+
+FILES TO HAND BACK TO CHATGPT ON RESUME
+- Step 75 — Enforce Min Tier Gap (uplift-only).html (stable checkpoint)
+- Step 77 Codex prompt file (senior FE template for unit pricing)
+- This context file
+
