@@ -24,6 +24,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - Step 98: File structure cleanup
+- **Organized Repository Structure**: Moved files into logical folders for better organization
+  - `/steps/` - All Step HTML files (Step 87 through Step 96+)
+  - `/docs/` - All documentation (README, WORKFLOW, CONTRIBUTING, CHANGELOG, etc.)
+  - `/data/` - All CSV sample files (rent roll test data)
+- **Updated Path References**: Fixed all test files and configs to point to new locations
+- **Fixed Relative Paths**: Updated Step HTML files to work from `/steps/` subfolder
+- **Maintained Functionality**: All tests passing (4/4 smoke tests, 11/11 boundary tests)
+- **Professional Organization**: Repository now follows industry-standard folder structure
+
 ### Added - Step 97: Branching + PR policy docs and templates
 - **Pull Request Template**: Created `.github/PULL_REQUEST_TEMPLATE.md` with comprehensive checklist
   - Pre-PR checklist: branch naming, title format, linked Step file, CHANGELOG, lint/test/smoke

@@ -71,7 +71,8 @@ We follow a **feature branch → PR → CI → merge → tag** workflow for all 
 ### Current Structure
 ```
 /Users/brennanthorpe/Desktop/Thorpe Management/
-├── Step 96 — Inline unit detail accordion.html  # Latest production-ready version
+├── steps/
+│   └── Step 96 — Inline unit detail accordion.html  # Latest production-ready version
 ├── src/
 │   └── js/
 │       ├── pricing-helpers.js     # Shared utilities (formatMoney, dates, etc.)
@@ -80,10 +81,21 @@ We follow a **feature branch → PR → CI → merge → tag** workflow for all 
 │       ├── app-boot.js            # Application initialization
 │       └── dev-guards.js          # Development boundary checks
 ├── docs/
-│   └── ARCHITECTURE.md            # Detailed module documentation
+│   ├── README.md                  # This file
+│   ├── WORKFLOW.md                 # Development process
+│   ├── CONTRIBUTING.md             # Code standards
+│   ├── ARCHITECTURE.md             # Detailed module documentation
+│   └── CHANGELOG.md                # Version history
+├── data/
+│   ├── sample_rent_roll_300_units_statuses.csv  # Test data
+│   └── rent_roll_200_units_mixed.csv            # Additional test data
 ├── assets/
 │   └── styles.css                 # Application styles
-└── tests/                         # (Future) Automated test suite
+├── tests/                         # Automated test suite
+│   ├── smoke.spec.ts              # End-to-end smoke tests
+│   ├── unit-details.spec.ts       # Unit detail functionality tests
+│   └── boundaries.spec.ts         # Module boundary tests
+└── schemas/                       # JSON schema validation
 ```
 
 ### Module Responsibilities
@@ -161,10 +173,10 @@ python3 -m http.server 8000
 ### 3. Open and Test
 ```bash
 # In your browser, navigate to:
-http://localhost:8000/Step%2096%20—%20Inline%20unit%20detail%20accordion.html
+http://localhost:8000/steps/Step%2096%20—%20Inline%20unit%20detail%20accordion.html
 
 # Or open directly from file system (some features may not work):
-open "Step 96 — Inline unit detail accordion.html"
+open "steps/Step 96 — Inline unit detail accordion.html"
 ```
 
 ### 4. Upload Sample Data
