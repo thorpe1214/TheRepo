@@ -47,6 +47,10 @@ test.describe('Unit Details Inline Accordion', () => {
     await unitPricingTab.click();
     await page.waitForTimeout(500);
 
+    // Wait for unit pricing section to populate
+    await page.waitForSelector('.unit-expand', { timeout: 10000 });
+    await page.waitForTimeout(300);
+
     // Verify no inline detail row exists initially
     let detailRows = page.locator('.unit-detail-row');
     await expect(detailRows).toHaveCount(0);
@@ -107,6 +111,10 @@ test.describe('Unit Details Inline Accordion', () => {
     await expect(unitPricingTab).toBeVisible();
     await unitPricingTab.click();
     await page.waitForTimeout(500);
+
+    // Wait for unit pricing section to populate
+    await page.waitForSelector('.unit-expand', { timeout: 10000 });
+    await page.waitForTimeout(300);
 
     // Find and click the first unit expand button
     const firstExpandBtn = page.locator('.unit-expand').first();
@@ -172,6 +180,10 @@ test.describe('Unit Details Inline Accordion', () => {
     await unitPricingTab.click();
     await page.waitForTimeout(500);
 
+    // Wait for unit pricing section to populate
+    await page.waitForSelector('.unit-expand', { timeout: 10000 });
+    await page.waitForTimeout(300);
+
     // Click first unit
     const firstExpandBtn = page.locator('.unit-expand').first();
     await expect(firstExpandBtn).toBeVisible({ timeout: 5000 });
@@ -225,6 +237,10 @@ test.describe('Unit Details Inline Accordion', () => {
     await expect(unitPricingTab).toBeVisible();
     await unitPricingTab.click();
     await page.waitForTimeout(500);
+
+    // Wait for unit pricing section to populate
+    await page.waitForSelector('.unit-expand', { timeout: 10000 });
+    await page.waitForTimeout(300);
 
     // Click first unit
     const firstExpandBtn = page.locator('.unit-expand').first();
