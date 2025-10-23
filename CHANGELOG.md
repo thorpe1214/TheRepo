@@ -24,6 +24,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - Step 97: Branching + PR policy docs and templates
+- **Pull Request Template**: Created `.github/PULL_REQUEST_TEMPLATE.md` with comprehensive checklist
+  - Pre-PR checklist: branch naming, title format, linked Step file, CHANGELOG, lint/test/smoke
+  - Testing section: automated tests + manual smoke check
+  - macOS Chromium flake note and workaround
+  - Post-merge checklist: tagging, releases, documentation
+- **README.md Updates**:
+  - Added "Testing Baseline" section with current baseline (Step 96) and historical baselines
+  - Added "Contributing Workflow" section with feature branch → PR → CI → merge → tag overview
+  - Quick start guide with 6-step workflow
+  - Links to WORKFLOW.md, CONTRIBUTING.md, GIT_WORKFLOW.md
+- **WORKFLOW.md Updates**:
+  - Added "Feature Branch → PR → CI → Merge → Tag Workflow" section with 10-step detailed guide
+  - Branch naming conventions: `feat/step-<NN>-<slug>`
+  - PR title format and examples
+  - Pre-PR quality checks: lint, test, smoke (with macOS note)
+  - CI quality gates explanation (4 checks: ESLint, schema, boundaries, smoke)
+  - Merge requirements and strategy
+  - Tag release instructions with semantic versioning
+  - Optional GitHub Release guide
+  - Complete command reference for full workflow
+- **CONTRIBUTING.md Updates**:
+  - Added "Contributor Checklists" section with three sub-checklists:
+    - Pre-PR Checklist: Code quality, testing, documentation, commit quality (15 items)
+    - PR Review Expectations: What makes a good PR vs. what to avoid
+    - Post-Merge Checklist: Tagging, optional release notes, documentation updates
+  - Concise, actionable checkboxes for each phase
+  - Clear guidance on one small step at a time, no drive-by refactors
+- **No Behavior Changes**: Pure documentation and template additions
+- **Enforces Professional Workflow**: Ensures all contributors (including AI assistants) follow structured PR process with quality gates
+
+### Changed - Step 96: Inline unit detail accordion
+- **Inline Accordion**: Converted unit detail from bottom overlay to inline accordion
+- **UX Improvement**: Detail panel now expands directly under the clicked unit row
+- **One at a Time**: Only one unit detail open at a time; clicking another closes the first
+- **Toggle Behavior**: Clicking the same unit again collapses the panel
+- **No Overlay**: Removed bottom overlay (#unitDetailBox) in favor of inline expansion
+- **Width Matches Table**: Detail panel spans full table width, no fixed overlay dimensions
+- **CSS Animation**: Smooth slideDown animation when panel opens
+- **Accessibility Maintained**: Full ARIA attributes, keyboard support (Enter/Space/Escape)
+- **Focus Management**: Focus moves into panel on open, returns to button on close
+- **Updated Tests**: All Playwright tests updated for inline accordion behavior:
+  - Test inline row insertion and removal
+  - Test switching between units (first closes, second opens)
+  - Test Escape key closes panel and restores focus
+  - Test toggle behavior (open/close same unit)
+  - Test amenity adjustment in inline panel
+- **CSS Updates**: Replaced .unit-detail-box styles with .unit-detail-row and .inline-unit-detail-content
+- **No Behavior Change**: Pricing math, guardrails, floorplan UI unchanged
+
+### Added - Step 95: Unit detail term pricing table (unit baseline)
+- **Term Pricing Table**: Added full term pricing breakdown (2-14 months) in unit detail panel
+- **Unit Baseline Calculation**: Unit baseline = floorplan baseline + amenity adjustment
+- **Term Premiums Applied**: Each term shows price with short-term premium, over-cap, and seasonality adjustments
+- **Pricing Functions**: Added `computeUnitBaseline()`, `computeUnitTermPrices()`, `renderUnitTermTable()` to `pricing-unit.js`
+- **Helper Functions**: Exposed `shortTermAdj()` and `getSeasonalityMultiplier()` in `pricing-helpers.js`
+- **Visual Presentation**: Term table matches floorplan table style with Term, Price, Notes columns
+- **Accessibility**: Proper ARIA labels on term pricing section
+- **Playwright Tests**: Extended `tests/unit-details.spec.ts` with tests for:
+  - Term table rendering (verifies all 13 terms present)
+  - 2-month and 14-month term rows visible
+  - Amenity adjustment reflected in baseline
+- **Updated Tests**: Updated smoke tests to reference Step 95
+- **No Behavior Change**: Existing floorplan pricing, renewals, and UI outside unit detail unchanged
+
 ### Fixed - Step 94: Unit-level Details expand/collapse with accessibility + Playwright test
 - **Expand Button**: Fixed unit-level expand button functionality (previously non-functional)
 - **Detail Overlay**: Implemented proper openUnitDetail/closeUnitDetail functions

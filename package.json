@@ -5,7 +5,9 @@
   "private": true,
   "scripts": {
     "smoke": "playwright test tests/smoke.spec.ts --reporter=line",
+    "smoke:mac": "playwright test tests/smoke.spec.ts --project=webkit --reporter=line",
     "test:unit-details": "playwright test tests/unit-details.spec.ts --reporter=line",
+    "test:unit-details:mac": "playwright test tests/unit-details.spec.ts --project=webkit --reporter=line",
     "test:boundaries": "jest tests/boundaries.spec.ts",
     "test": "npm run test:boundaries && npm run smoke && npm run test:unit-details",
     "lint": "eslint . --ext .js,.ts",

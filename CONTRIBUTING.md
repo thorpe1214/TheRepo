@@ -60,7 +60,7 @@ git commit -m "feat: Step 90 - add unit detail overlay"
 ```bash
 git commit -m "fix: resolve floorplan code mapping issue"
 git commit -m "fix(unit-pricing): handle empty amenity adjustments"
-git commit -m "fix: Step 89E - floorplan code matching"
+git commit -m "fix: Step 95 - unit term pricing calculation"
 ```
 
 #### **refactor**: Code restructuring (no behavior change)
@@ -611,19 +611,117 @@ if (window.__RM_DEV_GUARDS) {
 
 ---
 
+## Contributor Checklists
+
+### Pre-PR Checklist
+Complete **all items** before opening a pull request:
+
+#### Code Quality
+- [ ] Feature branch created: `feat/step-<NN>-<slug>`
+- [ ] Changes limited to one small Step (atomic change)
+- [ ] New Step HTML file saved (e.g., `Step 97 — [title].html`)
+- [ ] Code follows existing patterns and style guide
+- [ ] No accidental modifications to unrelated code
+- [ ] Inline comments updated where needed
+
+#### Testing
+- [ ] `npm run lint` passes (0 errors)
+- [ ] `npm run lint:fix` applied if needed
+- [ ] `npm run test:boundaries` passes (11/11 tests)
+- [ ] `npm run smoke` attempted (macOS may use WebKit if Chromium flakes)
+- [ ] Manual smoke check completed (see checklist below)
+- [ ] No console errors in browser DevTools
+- [ ] Previous functionality verified intact (regression check)
+
+#### Documentation
+- [ ] `CHANGELOG.md` updated under `[Unreleased]` section
+- [ ] Step file linked in PR description
+- [ ] README.md updated if architecture changed
+- [ ] ARCHITECTURE.md updated if module boundaries changed
+
+#### Commit Quality
+- [ ] Conventional commit format: `feat: Step <NN> — <short title>`
+- [ ] Clear, descriptive commit message
+- [ ] No merge conflicts with main branch
+
+---
+
+### PR Review Expectations
+
+#### What Makes a Good PR
+✅ **One small step at a time:**
+- Single feature, bug fix, or refactor
+- Complete and self-contained
+- Easy to review and test
+- Clear before/after description
+
+✅ **Quality standards:**
+- All CI checks pass (green checkmark)
+- Manual smoke check completed
+- Documentation updated
+- No drive-by refactors or unrelated changes
+
+✅ **Communication:**
+- Clear PR title and description
+- Screenshots for UI changes
+- Notes for reviewers highlighting key areas
+- Responsive to feedback
+
+#### What to Avoid
+❌ **Large, multi-feature PRs:**
+- Combining multiple unrelated changes
+- Refactoring + new feature in same PR
+- Changes that span multiple modules without clear justification
+
+❌ **Incomplete testing:**
+- Skipped smoke checks
+- Ignored console errors
+- No manual verification
+- Relying solely on CI without local testing
+
+❌ **Poor documentation:**
+- No CHANGELOG entry
+- Vague commit messages
+- Missing Step file reference
+- No explanation of behavior changes
+
+---
+
+### Post-Merge Checklist
+Complete **after PR is merged** to main:
+
+#### Tagging
+- [ ] Pull latest main: `git checkout main && git pull origin main`
+- [ ] Create annotated tag: `git tag -a v0.<NN> -m "Step <NN>: <short notes>"`
+- [ ] Push tag to GitHub: `git push origin main --tags`
+
+#### Optional Release Notes
+- [ ] Create GitHub Release (for milestone Steps)
+- [ ] Attach Step HTML file as release asset
+- [ ] Copy CHANGELOG entry to release description
+- [ ] Link to PR and any related issues
+
+#### Documentation
+- [ ] Update README "Current Version" footer (if milestone)
+- [ ] Update README "Testing Baseline" section (if new stable baseline)
+- [ ] Announce in team chat/email (if applicable)
+
+---
+
 ## Pull Request Process
 
 ### Before Opening PR
-1. ✅ Complete smoke check (all items pass)
-2. ✅ Update documentation if needed
-3. ✅ Add descriptive commit message
-4. ✅ Verify no merge conflicts
+1. ✅ Complete Pre-PR Checklist (see above)
+2. ✅ Complete smoke check (all items pass)
+3. ✅ Update documentation if needed
+4. ✅ Add descriptive commit message
+5. ✅ Verify no merge conflicts
 
 ### PR Title Format
 Follow same convention as commits:
 ```
-feat: Step 90 - Add unit detail overlay
-fix: Resolve floorplan mapping bug in Step 89E
+feat: Step 95 - Add unit detail term pricing
+fix: Resolve floorplan mapping bug in Step 94
 docs: Update ARCHITECTURE.md with data flow
 ```
 
@@ -643,7 +741,7 @@ Brief description of what this Step accomplishes.
 
 ## Changes Made
 - Modified `src/js/pricing-unit.js` - Added detail overlay logic
-- Updated `Step 89E.html` → `Step 90.html`
+- Updated `Step 94.html` → `Step 95.html`
 - Added inline documentation
 
 ## Testing Done
@@ -780,9 +878,9 @@ When smoke tests fail, CI uploads a Playwright report:
 git pull origin main
 
 # 2. Create new Step file
-cp "Step 89E — [old].html" "Step 90 — [new].html"
+cp "Step 95 — [old].html" "Step 96 — [new].html"
 
-# 3. Make changes in Step 90
+# 3. Make changes in Step 96
 ```
 
 ### After Implementation

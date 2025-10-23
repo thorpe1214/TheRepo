@@ -34,7 +34,7 @@ Step [N] — [brief description].html
 
 Examples:
 - `Step 87 — Unit term detail box + right-side toggle.html`
-- `Step 89E — Stable Baseline (manual testing).html`
+- `Step 95 — Unit Detail full term pricing from unit baseline.html`
 
 ### What Constitutes a "Step"?
 ✅ **Good Steps** (atomic, testable):
@@ -83,7 +83,7 @@ Cursor receives prompt → Implements → Saves new Step file
 
 ```bash
 # 1. Open the new Step file in browser
-open "Step 89E — Stable Baseline (manual testing).html"
+open "Step 95 — Unit Detail full term pricing from unit baseline.html"
 
 # 2. Run manual smoke test checklist
 # (See CONTRIBUTING.md for full checklist)
@@ -103,8 +103,227 @@ open "Step 89E — Stable Baseline (manual testing).html"
 
 ```bash
 git add .
-git commit -m "feat: Step 89E - stable baseline for manual testing"
+git commit -m "feat: Step 95 - unit detail term pricing from unit baseline"
 git push origin main
+```
+
+---
+
+## Feature Branch → PR → CI → Merge → Tag Workflow
+
+### Overview
+All changes to the codebase follow a **structured PR workflow** with automated quality gates:
+
+```
+Feature Branch → Open PR → CI Runs → Review → Merge → Tag Release
+```
+
+### 1. Create Feature Branch
+
+**Branch naming convention:**
+```bash
+feat/step-<NN>-<short-slug>
+```
+
+**Examples:**
+```bash
+git checkout -b feat/step-97-pr-policy-docs
+git checkout -b feat/step-98-unit-export-excel
+git checkout -b fix/step-96-accordion-focus
+```
+
+**Command:**
+```bash
+# From main branch
+git checkout main
+git pull origin main
+
+# Create feature branch
+git checkout -b feat/step-97-pr-policy-docs
+```
+
+### 2. Make Changes
+
+**Develop your Step incrementally:**
+1. Duplicate latest Step file (e.g., `cp "Step 96 — [old].html" "Step 97 — [new].html"`)
+2. Make targeted changes to achieve Step goal
+3. Update `CHANGELOG.md` under `[Unreleased]` section
+4. Test changes thoroughly
+
+### 3. Pre-PR Quality Checks
+
+**Run all checks locally before opening PR:**
+```bash
+# Run linter (auto-fix if possible)
+npm run lint
+npm run lint:fix  # If needed
+
+# Run all tests
+npm run test
+
+# Run smoke tests
+npm run smoke
+# Note: macOS Chromium may flake; use WebKit alternative if needed
+npm run smoke:mac  # Uses WebKit browser
+```
+
+**Expected results:**
+- ✅ `npm run lint` — 0 errors
+- ✅ `npm run test:boundaries` — 11/11 passing
+- ✅ `npm run smoke` — All tests pass (Linux CI will validate if macOS flakes)
+
+### 4. Commit and Push
+
+**Use conventional commit format:**
+```bash
+git add .
+git commit -m "feat: Step 97 — Add branching + PR policy docs and templates"
+git push origin feat/step-97-pr-policy-docs
+```
+
+### 5. Open Pull Request
+
+**PR title format:**
+```
+feat: Step <NN> — <short title>
+```
+
+**Examples:**
+- `feat: Step 97 — Add branching + PR policy docs and templates`
+- `fix: Step 96 — Fix accordion focus restoration`
+- `docs: Update ARCHITECTURE.md with data flow diagrams`
+
+**Using the PR template:**
+- Navigate to GitHub and create a new PR from your feature branch
+- The PR template (`.github/PULL_REQUEST_TEMPLATE.md`) will auto-populate
+- Fill in all checkboxes and sections
+- Link the Step HTML file
+- Add screenshots if UI changes
+
+### 6. CI Quality Gates
+
+**Automated checks run on every PR:**
+
+```bash
+✓ ESLint: Code quality and style checks
+✓ Schema Validation: JSON data structure validation (optional)
+✓ Boundary Tests: Jest module separation tests (11 tests)
+✓ Smoke Tests: Playwright end-to-end tests (Linux only required)
+```
+
+**CI runs on:**
+- `ubuntu-latest` with Node 20
+- Chromium browser (with dependencies)
+- Expected runtime: ~3-4 minutes
+
+**What CI validates:**
+1. **ESLint** (`npm run lint`): Code style and quality
+2. **Schema Validation** (`npm run validate`): Data structure consistency (continues on error if no samples)
+3. **Boundary Tests** (`npm run test:boundaries`): Module separation (must pass 11/11)
+4. **Smoke Tests** (`npm run smoke`): End-to-end functionality (page load, CSV upload, pricing render)
+
+### 7. macOS Chromium Note
+
+**Known issue:** macOS Sequoia (24.x) has Chromium compatibility issues with Playwright's headless shell.
+
+**Workaround for local testing:**
+```bash
+# Use WebKit instead of Chromium on macOS
+npm run smoke:mac
+
+# Or add to package.json scripts:
+"smoke:mac": "playwright test --project=webkit"
+```
+
+**CI validation:** Linux CI (ubuntu-latest) is the source of truth. If local macOS smoke fails but tests are correctly written, CI will validate.
+
+### 8. Merge Requirements
+
+**Merge only when:**
+- ✅ All CI checks pass (green checkmark on PR)
+- ✅ Manual smoke check completed locally
+- ✅ Code reviewed (if applicable)
+- ✅ CHANGELOG.md updated
+- ✅ No merge conflicts with main
+
+**Merge strategy:**
+```bash
+# Squash and merge (preferred for clean history)
+# Or merge commit (if preserving detailed history)
+```
+
+### 9. Tag Release
+
+**After merging to main:**
+```bash
+# Pull latest main
+git checkout main
+git pull origin main
+
+# Tag with semantic version
+git tag -a v0.<NN> -m "Step <NN>: <short release notes>
+
+Features:
+- <Feature 1>
+- <Feature 2>
+
+Testing:
+- All CI checks passing
+- Smoke tests verified
+
+Changes:
+- See CHANGELOG.md for details"
+
+# Push tag to GitHub
+git push origin main --tags
+```
+
+**Versioning convention:**
+- `v0.<NN>` for Step releases (e.g., `v0.97`, `v0.98`)
+- `v1.0.0` for major stable releases
+- `v1.1.0` for minor feature releases
+- `v1.0.1` for patch/bug fix releases
+
+### 10. Optional: GitHub Release
+
+**Create a GitHub Release for milestone Steps:**
+1. Navigate to GitHub repository → Releases → "Draft a new release"
+2. Select your tag (e.g., `v0.97`)
+3. Title: `Step 97 — Add branching + PR policy docs`
+4. Description: Copy from CHANGELOG.md entry
+5. Attach Step HTML file as release asset
+6. Publish release
+
+### Complete Command Reference
+
+**Pre-PR checklist:**
+```bash
+# 1. Create feature branch
+git checkout -b feat/step-<NN>-<slug>
+
+# 2. Make changes, save Step file
+
+# 3. Run quality checks
+npm run lint
+npm run test
+npm run smoke  # or npm run smoke:mac on macOS
+
+# 4. Commit and push
+git add .
+git commit -m "feat: Step <NN> — <short title>"
+git push origin feat/step-<NN>-<slug>
+
+# 5. Open PR on GitHub (fill template)
+
+# 6. Wait for CI ✅
+
+# 7. Merge PR
+
+# 8. Tag release
+git checkout main
+git pull origin main
+git tag -a v0.<NN> -m "Step <NN>: <notes>"
+git push origin main --tags
 ```
 
 ---
@@ -114,16 +333,16 @@ git push origin main
 ### Active Development
 ```
 /Users/brennanthorpe/Desktop/Thorpe Management/
-├── Step 89E — Stable Baseline (manual testing).html  ← Current stable
-├── Step 89F — [next feature].html                  ← New work
-├── src/js/                                          ← Shared JS modules
+├── Step 95 — Unit Detail full term pricing from unit baseline.html  ← Current stable
+├── Step 96 — [next feature].html                                    ← New work
+├── src/js/                                                           ← Shared JS modules
 ├── assets/                                          ← Shared assets
 └── docs/                                            ← Documentation
 ```
 
 ### Step File Lifecycle
-1. **Current Stable**: Latest verified working version (e.g., `Step 89E — Stable Baseline`)
-2. **In Progress**: New file being developed (e.g., `Step 89F`)
+1. **Current Stable**: Latest verified working version (e.g., `Step 95 — Unit Detail full term pricing from unit baseline`)
+2. **In Progress**: New file being developed (e.g., `Step 96`)
 3. **Archive**: Previous steps kept for history (never deleted)
 
 ---
@@ -181,8 +400,8 @@ If a step breaks functionality:
 ```bash
 # 1. Identify last working step
 # 2. Copy that file as the new current
-cp "Step 89D — floorplan pricing externalized.html" \
-   "Step 89E — revert broken changes.html"
+cp "Step 94 — Fix unit-level Details expand.html" \
+   "Step 95 — revert broken changes.html"
 
 # 3. Document what went wrong
 # 4. Plan corrective step
@@ -263,9 +482,9 @@ main              ← Stable, tested steps only
 
 ### Example Commit History
 ```
-feat: Step 89E - stable baseline for manual testing
-fix: Step 89D - floorplan code mapping bug
-refactor: Step 89C - externalize unit pricing
+feat: Step 95 - unit detail term pricing from unit baseline
+feat: Step 94 - fix unit-level details expand (a11y + test)
+feat: Step 91 - CI smoke on PRs with badges
 feat: Step 89B - externalize app boot logic
 ```
 
@@ -276,8 +495,8 @@ When a Step represents a significant milestone and all tests pass, promote it to
 #### 1. Update Documentation
 ```bash
 # Update README.md "Current stable" reference
-# Change from: Step 89E — Stable Baseline (manual testing).html
-# To:          Step 90 — Repo hygiene & guardrails upgrade.html
+# Change from: Step 94 — Fix unit-level Details expand.html
+# To:          Step 95 — Unit Detail full term pricing from unit baseline.html
 ```
 
 #### 2. Update CHANGELOG.md
@@ -342,7 +561,7 @@ Use [Semantic Versioning](https://semver.org/):
 #### Example: Promoting Step 90
 ```bash
 # 1. Update README.md
-sed -i '' 's/Step 89E/Step 90/g' README.md
+sed -i '' 's/Step 94/Step 95/g' README.md
 
 # 2. Add CHANGELOG entry
 cat >> CHANGELOG.md << 'EOF'
