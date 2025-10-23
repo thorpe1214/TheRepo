@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import * as path from 'path';
 
-const CURRENT_STEP = 'Step 96 — Inline unit detail accordion.html';
-const SAMPLE_CSV = 'sample_rent_roll_300_units_statuses.csv';
+const CURRENT_STEP = 'steps/Step 96 — Inline unit detail accordion.html';
+const SAMPLE_CSV = 'data/sample_rent_roll_300_units_statuses.csv';
 
 test.describe('Unit Details Inline Accordion', () => {
   test('unit pricing section exists', async ({ page }) => {
