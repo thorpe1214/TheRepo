@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import * as path from 'path';
 
-const CURRENT_STEP = 'steps/Step 96 — Inline unit detail accordion.html';
+const CURRENT_STEP = 'steps/Step 99 — Carry-forward mode for pricing evolution.html';
 const SAMPLE_CSV = 'data/sample_rent_roll_300_units_statuses.csv';
 
 test.describe('Revenue Management System - Smoke Tests', () => {

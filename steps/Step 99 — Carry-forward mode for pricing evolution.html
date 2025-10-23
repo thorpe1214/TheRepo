@@ -1,0 +1,3889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Revenue Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./../assets/styles.css" />
+
+
+
+<!-- Sync target to hidden bandLow/bandHigh for backward compatibility -->
+<script>
+(function(){
+  function _syncBandsFromTarget(){
+    try{
+      var t = parseFloat(document.getElementById('comfortTarget')?.value || '95');
+      if (!isFinite(t)) t = 95;
+      var low = Math.max(80, Math.min(100, t - 2));
+      var high = Math.max(80, Math.min(100, t + 1));
+      var lowEl = document.getElementById('comfortLow');
+      var highEl = document.getElementById('comfortHigh');
+      if (lowEl) lowEl.value = String(low);
+      if (highEl) highEl.value = String(high);
+    }catch(e){}
+  }
+  window._syncBandsFromTarget = _syncBandsFromTarget;
+  document.addEventListener('DOMContentLoaded', function(){
+    _syncBandsFromTarget();
+    var tgt = document.getElementById('comfortTarget');
+    if (tgt){
+      tgt.addEventListener('input', _syncBandsFromTarget);
+      tgt.addEventListener('change', _syncBandsFromTarget);
+    }
+  });
+})();
+</script>
+
+
+<script>
+(function(){
+  if (window.__npUnitsInit) return; window.__npUnitsInit = true;
+  function getBestTermForFp(fp){ return { termMonths: fp.referenceTerm||14, price: fp.referenceBase }; }
+
+  function buildFpIndex(){
+    const idx=new Map();
+    if (Array.isArray(window.__fpResults)){
+      window.__fpResults.forEach(r=>{ if(r&&r.code) idx.set(String(r.code), { code:r.code, name:r.name||r.code, referenceBase:r.referenceBase, referenceTerm:r.referenceTerm||14 }); });
+    } else {
+      // Fallback scrape: find "reference: N mo @ $X" in FP debug lines
+      document.querySelectorAll('#nlTables .card').forEach(card=>{
+        const title = card.querySelector('div[style*="font-weight:600"],h2,h3');
+        if (!title) return; const code=(title.textContent||'').trim().split(/\s+/)[0];
+        const dbg = Array.from(card.querySelectorAll('.note,div,p')).find(x=>/reference:\s*\d+\s*mo\s*@\s*\$?/i.test(x.textContent||''));
+        let ref=null; if(dbg){ const m=(dbg.textContent||'').match(/reference:\s*(\d+)\s*mo\s*@\s*\$?([0-9,]+)/i); if(m){ ref=Number(String(m[2]).replace(/,/g,'')); }}
+        if(code && isFinite(ref)) idx.set(code, { code, name:code, referenceBase:ref, referenceTerm:Number((dbg?.match?.(/(\d+)\s*mo/)||[])[1])||14 });
+      });
+    }
+    return idx;
+  }
+
+  function buildUnits(){
+    const rows = Array.isArray(window.normRows)&&window.normRows.length? window.normRows : (Array.isArray(window.mappedRows)? window.mappedRows:[]);
+    const map = (function(){ try{ const ps=window.propertySetup||{}; const pid=ps.property_id||ps.property_name||'default'; return JSON.parse(localStorage.getItem(`rm:fpmap:${pid}`))||{}; }catch(e){ return {}; } })();
+    const AMENITY_KEYS = [
+      'AmenityAdj','Amenity_Adjustment','AmenityAdjustment','Amenity Delta','Amenity_Delta','Amenity Rent','Amenity_Rent',
+      'Amenities','Amenity','UnitAdj','Unit_Adjustment','Unit Adjustment','Unit Premium','Premium','Surcharge',
+      'AddlRent','Addl_Rent','Additional Rent','Other Rent','Other_Rent'
+    ];
+    const list = rows.map(r=>({
+      unit: r.UnitID||r.Unit||r.UnitNbr||r.UnitNumber||'',
+      floorplan_code: r.FP_CODE || map[String(r.Floorplan||'').trim()] || String(r.Floorplan||'').trim(),
+      status: r.Status || r.status || '',
+      vacant_date: r.VacantDate || r.vacant_date || null,
+      available_date: r.PreleaseStart || r.available_date || null,
+      lease_end_date: (r.LeaseEnd || r.Lease_End || r.LeaseEndDate || r.Lease_End_Date || r['Lease End'] || r['Lease End Date'] || r.MoveOut || r.Move_Out || r.MoveOutDate || r.Move_Out_Date || r['Move Out'] || r['Move Out Date'] || null),
+      amenity_adj: (function(){ let tot=0; for(const k of AMENITY_KEYS){ if(Object.prototype.hasOwnProperty.call(r,k)) tot+=__toNumberSigned(r[k]); const lk=k.toLowerCase(); for(const kk in r){ if(kk && kk.toLowerCase()===lk){ tot+=__toNumberSigned(r[kk]); break; } } } return tot; })(),
+      current: r.Price || r.CurrentRent || null
+    })).filter(u=> String(u.unit||'').trim());
+    return list.filter(u=>{ const s=unitStatus(u); return s==='Vacant' || s==='On Notice'; });
+  }
+
+  // FP map helpers (shared)
+  function __fpMapKey(){ try{ const ps=window.propertySetup||{}; return 'rm:fpmap:' + (ps.property_id||ps.property_name||'default'); }catch(e){ return 'rm:fpmap:default'; } }
+  function __loadFPMap(){ try{ const raw=localStorage.getItem(__fpMapKey()); return raw? JSON.parse(raw): {}; }catch(e){ return {}; } }
+
+  // Build all units (no status filter) for Unit sub-tab
+  function buildUnitsAll(){
+    // Prefer normalized rows (already FP_CODE) if available
+    if (Array.isArray(window.normRows) && window.normRows.length){
+      const AMENITY_KEYS = [
+        'AmenityAdj','Amenity_Adjustment','AmenityAdjustment','Amenity Delta','Amenity_Delta','Amenity Rent','Amenity_Rent',
+        'Amenities','Amenity','UnitAdj','Unit_Adjustment','Unit Adjustment','Unit Premium','Premium','Surcharge',
+        'AddlRent','Addl_Rent','Additional Rent','Other Rent','Other_Rent'
+      ];
+      return window.normRows.map(r=>({
+        unit: r.UnitID||r.Unit||r.UnitNbr||r.UnitNumber||'',
+        floorplan_code: r.FP_CODE || String(r.Floorplan||'').trim(),
+        status: r.Status || r.status || '',
+        vacant_date: r.VacantDate || r.vacant_date || null,
+        available_date: r.PreleaseStart || r.available_date || null,
+        lease_end_date: (r.LeaseEnd || r.Lease_End || r.LeaseEndDate || r.Lease_End_Date || r['Lease End'] || r['Lease End Date'] || r.MoveOut || r.Move_Out || r.MoveOutDate || r.Move_Out_Date || r['Move Out'] || r['Move Out Date'] || null),
+        amenity_adj: (function(){ let tot=0; for(const k of AMENITY_KEYS){ if(Object.prototype.hasOwnProperty.call(r,k)) tot+=__toNumberSigned(r[k]); const lk=k.toLowerCase(); for(const kk in r){ if(kk && kk.toLowerCase()===lk){ tot+=__toNumberSigned(r[kk]); break; } } } return tot; })(),
+        current: r.Price || r.CurrentRent || null
+      })).filter(u=> String(u.unit||'').trim());
+    }
+    // Fallback to mappedRows + local FP map
+    const rows = Array.isArray(window.mappedRows)? window.mappedRows : [];
+    const map = __loadFPMap();
+    const AMENITY_KEYS = [
+      'AmenityAdj','Amenity_Adjustment','AmenityAdjustment','Amenity Delta','Amenity_Delta','Amenity Rent','Amenity_Rent',
+      'Amenities','Amenity','UnitAdj','Unit_Adjustment','Unit Adjustment','Unit Premium','Premium','Surcharge',
+      'AddlRent','Addl_Rent','Additional Rent','Other Rent','Other_Rent'
+    ];
+    const out = rows.map(r=>{
+      const rawLbl = String(r.Floorplan||'').trim();
+      const code = map[rawLbl] || rawLbl;
+      return {
+        unit: r.UnitID||r.Unit||r.UnitNbr||r.UnitNumber||'',
+        floorplan_code: code,
+        status: r.Status || r.status || '',
+        vacant_date: r.VacantDate || r.vacant_date || null,
+        available_date: r.PreleaseStart || r.available_date || null,
+        lease_end_date: (r.LeaseEnd || r.Lease_End || r.LeaseEndDate || r.Lease_End_Date || r['Lease End'] || r['Lease End Date'] || r.MoveOut || r.Move_Out || r.MoveOutDate || r.Move_Out_Date || r['Move Out'] || r['Move Out Date'] || null),
+        amenity_adj: (function(){ let tot=0; for(const k of AMENITY_KEYS){ if(Object.prototype.hasOwnProperty.call(r,k)) tot+=__toNumberSigned(r[k]); const lk=k.toLowerCase(); for(const kk in r){ if(kk && kk.toLowerCase()===lk){ tot+=__toNumberSigned(r[kk]); break; } } } return tot; })(),
+        current: r.Price || r.CurrentRent || null
+      };
+    }).filter(u=> String(u.unit||'').trim());
+    return out;
+  }
+
+  // Persist across re-renders in this session (not localStorage)
+  window.__npUnitsState = window.__npUnitsState || { search:'', vac:true, notice:true, page:1 };
+
+  function npSubtabKey(){ return 'np_subtab_v1'; }
+  function getNPSubtab(){ try{ return localStorage.getItem(npSubtabKey()) || 'fp'; }catch(e){ return 'fp'; } }
+  function setNPSubtab(v){ try{ localStorage.setItem(npSubtabKey(), v==='unit'?'unit':'fp'); }catch(e){} }
+
+  // Unit pricing function is now externalized to ../src/js/pricing-unit.js
+  function renderUnitPricingSection_DISABLED(){
+    const host=document.getElementById('unitPricingSection'); if(!host) return;
+    const isUnitTab = (typeof getNPSubtab==='function' ? getNPSubtab()==='unit' : false);
+    if (!isUnitTab && !loadShowUnits()){ host.innerHTML=''; return; }
+    const fpIdx=buildFpIndex(); if(!fpIdx.size){ host.innerHTML='<div class="note">No floorplan bases available yet.</div>'; return; }
+
+    const unitsRaw = isUnitTab ? buildUnitsAll() : buildUnits();
+    // Available-only gating on Unit tab: keep Vacant / On Notice only
+    const units = isUnitTab ? unitsRaw.filter(u=>{ const st=unitStatus(u); return st==='Vacant' || st==='On Notice'; }) : unitsRaw;
+    const today=new Date();
+    const totalUnits = units.length;
+    // Capture current control state from DOM if present; fall back to memory state
+    const sEl = document.getElementById('unitSearch');
+    const vacEl = document.getElementById('fltVac');
+    const notEl = document.getElementById('fltNotice');
+    const searchValRaw = (sEl && typeof sEl.value === 'string') ? sEl.value : (window.__npUnitsState.search || '');
+    const fltVac = (vacEl && typeof vacEl.checked === 'boolean') ? vacEl.checked : (window.__npUnitsState.vac !== false);
+    const fltNotice = (notEl && typeof notEl.checked === 'boolean') ? notEl.checked : (window.__npUnitsState.notice !== false);
+    // Update memory state now so filtering uses it
+    window.__npUnitsState.search = searchValRaw;
+    window.__npUnitsState.vac = !!fltVac;
+    window.__npUnitsState.notice = !!fltNotice;
+    const searchVal = searchValRaw.trim().toLowerCase();
+    let filtered = units.filter(u=>{
+      const st=unitStatus(u); // will be Vacant or On Notice only in Unit tab
+      const hit = !searchVal || String(u.unit).toLowerCase().includes(searchVal) || String(u.floorplan_code||'').toLowerCase().includes(searchVal);
+      if (st==='Vacant') return (fltVac && hit);
+      if (st==='On Notice') return (fltNotice && hit);
+      return false; // never include Others
+    });
+
+    // Make filtered units available to the detail overlay renderer
+    window.__npUnitsFiltered = filtered;
+
+    // Global pagination if >500
+    // Paging state
+    const PER=100; const needsPaging = filtered.length>500; const pages = needsPaging? Math.ceil(filtered.length/PER):1;
+    if (window.__npUnitsState.page == null) window.__npUnitsState.page = 1;
+    window.__npUnitsPage = Math.min(Math.max(window.__npUnitsState.page,1), pages);
+    const page = window.__npUnitsPage;
+    const sliceStart=(page-1)*PER, sliceEnd = needsPaging? (sliceStart+PER): filtered.length; const paged = needsPaging? filtered.slice(sliceStart, sliceEnd): filtered;
+
+    // Group by FP using only paged units to avoid heavy DOM
+    const byFP = new Map(); let hasUnmapped=false;
+    for(const u of paged){ if(!fpIdx.has(String(u.floorplan_code))){ hasUnmapped=true; continue; } const arr=byFP.get(u.floorplan_code)||[]; arr.push(u); byFP.set(u.floorplan_code, arr); }
+    const fps = Array.from(byFP.keys()).map(code=>({ code, name: (window.propertySetup?.floorplans||[]).find(x=>String(x.code)===String(code))?.name || code, referenceBase:(fpIdx.get(code)?.referenceBase||null), referenceTerm:(fpIdx.get(code)?.referenceTerm||14) }));
+    fps.sort((a,b)=>{ const ka=computeFpSortKey(a), kb=computeFpSortKey(b); return (ka[0]-kb[0]) || ka[1].localeCompare(kb[1]); });
+
+    let html='';
+    // Filters row
+    html += '<div class="actions" style="gap:8px; align-items:center; margin-bottom:8px">';
+    html += `<input type="text" id="unitSearch" placeholder="Search unit or FP code" style="max-width:220px" value="${__np_escape(searchValRaw)}" />`;
+    html += `<label><input type="checkbox" id="fltVac" ${fltVac ? 'checked' : ''} /> Vacant</label>`;
+    html += `<label><input type="checkbox" id="fltNotice" ${fltNotice ? 'checked' : ''} /> On Notice</label>`;
+    if (needsPaging){ html += `<span class="badge" style="margin-left:auto">${filtered.length} units</span>`; }
+    html += '</div>';
+    if (hasUnmapped) html += '<div class="note" style="margin-bottom:6px">Some units are unmapped — fix in Settings → Floorplan Map.</div>';
+
+    // Groups
+    fps.forEach(fp=>{
+      const list = sortUnitsForFp(byFP.get(fp.code)||[], today);
+      const btnId = `fpUnits_${fp.code}`;
+      html += `<section class="card" style="margin:8px 0;">`;
+      html += `<div class="actions" style="justify-content:space-between"><button class="btn xs" aria-expanded="true" data-coll="${btnId}">FP ${fp.code} — ${list.length} available</button><div class="pill">Ref: ${formatMoney(fp.referenceBase)} (${fp.referenceTerm} mo)</div></div>`;
+      html += `<div id="${btnId}" style="margin-top:6px">`;
+      html += '<div style="overflow:auto"><table class="basic" style="width:100%"><thead><tr><th>Unit</th><th>FP</th><th>Status</th><th>Avail / Vacant Age</th><th>Current</th><th>Proposed (ref)</th><th>Δ $</th><th>Δ %</th><th>Amenities</th><th class="ta-right w-8">&nbsp;</th></tr></thead><tbody>';
+      list.forEach(u=>{
+        const st=unitStatus(u);
+        const cur=Number(u.current)||NaN;
+        const refPrice=Number(fp.referenceBase)||NaN;
+        const amen=Number(u.amenity_adj||0);
+        const proposedWithAmen = Math.max(0, (isFinite(refPrice)?refPrice:0) + amen);
+        const d$=(isFinite(cur)&&isFinite(proposedWithAmen))? (proposedWithAmen-cur):NaN;
+        const dP=(isFinite(cur)&&cur>0)? (d$/cur*100):NaN;
+        let availTxt='—'; if(st==='Vacant'){ const age=vacancyAgeDays(u,today); availTxt=`Vacant ${age} days`; } else if(st==='On Notice'){ const dt=onNoticeAvailDate(u); availTxt = dt? ('Avail '+dt.toISOString().slice(0,10)):'On Notice'; }
+        let amenCell = '';
+        if (amen !== 0){ const sign = amen > 0 ? '+' : '-'; amenCell = sign + formatMoney(Math.abs(amen)); }
+        const key = `${fp.code}::${String(u.unit||'')}`;
+        html += `<tr class="unit-row" data-key="${key}" data-base="${isFinite(proposedWithAmen)?proposedWithAmen:''}" data-cur="${isFinite(cur)?cur:''}" data-fp="${fp.code}">`+
+                `<td>${__np_escape(String(u.unit||''))}</td>`+
+                `<td>${fp.code}</td><td>${st}</td><td>${availTxt}</td><td>${isFinite(cur)?formatMoney(cur):'—'}</td><td>${isFinite(proposedWithAmen)?formatMoney(proposedWithAmen):'—'}</td><td>${isFinite(d$)?formatMoney(d$):'—'}</td><td>${isFinite(dP)?formatPct(dP):'—'}</td><td>${amenCell}</td></tr>`;
+        // Append right-side toggle
+        html = html.replace(/<\/tr>$/, `<td class=\"ta-right\"><button class=\"btn-icon unit-expand\" aria-expanded=\"false\" aria-label=\"Show lease term options\" data-unit=\"${__np_escape(String(u.unit||''))}\">▼<\/button><\/td><\/tr>`);
+      });
+      html += '</tbody></table></div>';
+      html += '</div></section>';
+    });
+
+    // Global pager
+    if (needsPaging){
+      html += '<div class="actions" style="justify-content:flex-end; gap:8px; margin-top:8px">';
+      html += `<button id="npPrev" class="btn xs" ${page<=1?'disabled':''}>Prev</button>`;
+      html += `<span class="badge">${page} / ${pages}</span>`;
+      html += `<button id="npNext" class="btn xs" ${page>=pages?'disabled':''}>Next</button>`;
+      html += '</div>';
+    }
+
+    host.innerHTML = html;
+    // Wire filter events
+    const reRenderDebounced = __np_debounce(()=>{
+      const s2=document.getElementById('unitSearch'); const v2=document.getElementById('fltVac'); const n2=document.getElementById('fltNotice');
+      window.__npUnitsState.search = s2 ? s2.value : '';
+      window.__npUnitsState.vac = v2 ? !!v2.checked : true;
+      window.__npUnitsState.notice = n2 ? !!n2.checked : true;
+      window.__npUnitsState.page = 1;
+      renderUnitPricingSection();
+    }, 150);
+    const s=document.getElementById('unitSearch'); if(s && !s.__wired){ s.__wired=true; s.addEventListener('input', reRenderDebounced); }
+    const a=document.getElementById('fltVac'); if(a && !a.__wired){ a.__wired=true; a.addEventListener('change', reRenderDebounced); }
+    const b=document.getElementById('fltNotice'); if(b && !b.__wired){ b.__wired=true; b.addEventListener('change', reRenderDebounced); }
+    host.querySelectorAll('button[data-coll]').forEach(btn=>{ btn.addEventListener('click', ()=>{ const id=btn.getAttribute('data-coll'); const el=document.getElementById(id); const exp=btn.getAttribute('aria-expanded')==='true'; btn.setAttribute('aria-expanded', String(!exp)); if(el) el.style.display = exp? 'none':'block'; }); });
+    const prev=document.getElementById('npPrev'), next=document.getElementById('npNext');
+    if(prev) prev.onclick=()=>{ window.__npUnitsState.page=Math.max(1,(window.__npUnitsState.page||1)-1); renderUnitPricingSection(); };
+    if(next) next.onclick=()=>{ window.__npUnitsState.page=Math.min(pages,(window.__npUnitsState.page||1)+1); renderUnitPricingSection(); };
+    // Detail box wiring (overlay) and builder
+    // Ensure detail container exists once
+    (function ensureDetailBox(){
+      const hostBox = document.getElementById('unitDetailBox');
+      if (hostBox) return;
+      const box = document.createElement('div'); box.id='unitDetailBox'; box.className='unit-detail-box hidden'; box.setAttribute('role','dialog'); box.setAttribute('aria-modal','true'); box.setAttribute('aria-labelledby','udbTitle');
+      box.innerHTML = '<div class="udb-card"><div class="udb-header"><div id="udbTitle" class="udb-title"></div><button id="udbClose" class="btn-icon" aria-label="Close">✕</button></div><div class="udb-body"></div></div>';
+      const sec = document.getElementById('unitPricingSection'); if (sec) sec.appendChild(box);
+      const closer = box.querySelector('#udbClose'); if (closer && !closer.__wired){ closer.__wired=true; closer.addEventListener('click', closeUnitDetail); }
+      if (!window.__npDetailEsc){ window.__npDetailEsc=true; document.addEventListener('keydown', (e)=>{ if (e.key==='Escape') closeUnitDetail(); }); }
+    })();
+
+    // Close any expanded details on re-render
+    closeUnitDetail();
+    // Wire expand buttons (click + keyboard) - using event delegation
+    const unitSection = document.getElementById('unitPricingSection');
+    if (unitSection && !unitSection.__wired) {
+      unitSection.__wired = true;
+      unitSection.addEventListener('click', (e) => {
+        const btn = e.target.closest('.unit-expand');
+        if (btn) {
+          const unitId = btn.getAttribute('data-unit');
+          if (unitId) openUnitDetail(unitId);
+        }
+      });
+      unitSection.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          const btn = e.target.closest('.unit-expand');
+          if (btn) {
+            e.preventDefault();
+            const unitId = btn.getAttribute('data-unit');
+            if (unitId) openUnitDetail(unitId);
+          }
+        }
+      });
+    }
+    // Restore focus nicety
+    if (document.activeElement && document.activeElement.id === 'unitSearch'){
+      const s3=document.getElementById('unitSearch'); if (s3){ s3.focus(); const len=s3.value.length; try{ s3.setSelectionRange(len,len); }catch(e){} }
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ const cb=document.getElementById('npShowUnits'); if(cb && !cb.__wired){ cb.__wired=true; cb.checked=loadShowUnits(); cb.addEventListener('change', ()=>{ saveShowUnits(cb.checked); window.__renderUnitPricingSection(); }); }});
+  
+  // Global unit detail functions for event delegation
+  function openUnitDetail(unitId){
+    if (window.__npOpenUnit === unitId){ closeUnitDetail(); return; }
+    window.__npOpenUnit = unitId;
+    document.querySelectorAll('.unit-expand').forEach(b=>{ const on=(b.dataset.unit===String(unitId)); b.setAttribute('aria-expanded', on?'true':'false'); b.textContent = on? '▲' : '▼'; });
+    renderUnitDetailBox(unitId);
+  }
+  
+  function closeUnitDetail(){ 
+    window.__npOpenUnit=null; 
+    const box=document.getElementById('unitDetailBox'); 
+    if(box) box.classList.add('hidden'); 
+    document.querySelectorAll('.unit-expand').forEach(b=>{ b.setAttribute('aria-expanded','false'); b.textContent='▼'; }); 
+  }
+  
+  function renderUnitDetailBox(unitId){
+    const box = document.getElementById('unitDetailBox'); if(!box) return;
+    const unitsAll = (window.__npUnitsFiltered || []);
+    const u = unitsAll.find(x=> String(x.unit||'')=== String(unitId)); if(!u) { closeUnitDetail(); return; }
+    const fp = String(u.floorplan_code||'');
+    const fpRef = (buildFpIndex().get(fp)||{}).referenceBase || 0;
+    const base = Math.max(0, Number(fpRef)||0) + Number(u.amenity_adj||0);
+    const cur = Number(u.current)||NaN;
+    const title = box.querySelector('#udbTitle'); if (title) title.textContent = `Unit ${unitId} • ${fp}`;
+    const body = box.querySelector('.udb-body'); if (body) body.innerHTML = buildTermsHTML(base, cur);
+    box.classList.remove('hidden');
+  }
+  
+  function buildTermsHTML(base, cur){
+    const cfg = (typeof readCfg==='function') ? readCfg() : {};
+    const terms = (cfg && Array.isArray(cfg.nlTerms) && cfg.nlTerms.length) ? cfg.nlTerms : (window.readNLTerms ? window.readNLTerms() : [2,3,4,5,6,7,8,9,10,11,12,13,14]);
+    let rows='';
+    for(const term of terms){
+      const longTerm = term >= 10;
+      const shortPct = longTerm ? 0 : (shortTermAdj(100, term)/100 - 1);
+      const end = new Date(); end.setMonth(end.getMonth()+term);
+      const key = end.getFullYear()+"-"+String(end.getMonth()+1).padStart(2,"0");
+      const overCapCount = (typeof overByKey === 'object' && overByKey) ? (overByKey[key] || 0) : 0;
+      const overCapPct = (function(){
+        const el = $('seasonalityCurve');
+        const mm = (typeof seasonalityMultiplier === 'function' && el) ? seasonalityMultiplier(el.value, key) : 1;
+        return (mm - 1);
+      })();
+      const seasArr = (window.__seasonalityArray__ || []);
+      const m = Number(seasArr[end.getMonth()]);
+      const seasonalityPct = (Number.isFinite(m) ? (m - 1) : 0);
+      const seasonalUplift = (seasonalityPct>0 && (overCapCount>0)) ? seasonalityPct : 0;
+      const p = base * (1 + (shortPct||0) + (overCapPct||0) + (seasonalUplift||0));
+      const d$ = (isFinite(cur) && isFinite(p)) ? (p - cur) : NaN;
+      const dP = (isFinite(cur) && cur>0) ? (d$/cur*100) : NaN;
+      rows += `<tr><td>${term} mo</td><td>${formatMoney(p)}</td><td>${isFinite(d$)?formatMoney(d$):'—'}</td><td>${isFinite(dP)?formatPct(dP):'—'}</td></tr>`;
+    }
+    return `<table class="basic" style="width:100%"><thead><tr><th>Term</th><th>Proposed</th><th>Δ $</th><th>Δ %</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+  
+  // Sub-tab wiring for New Pricing (Floorplan | Unit)
+  function npSubtabKey(){ return 'np_subtab_v1'; }
+  function getNPSubtab(){ try{ return localStorage.getItem(npSubtabKey()) || 'fp'; }catch(e){ return 'fp'; } }
+  function setNPSubtab(v){ try{ localStorage.setItem(npSubtabKey(), v==='unit'?'unit':'fp'); }catch(e){} }
+
+  function applyNPSubtabUI(sub){
+    const bar=document.getElementById('npSubtabBar'); if(!bar) return;
+    const btns=bar.querySelectorAll('[role="tab"]');
+    btns.forEach(btn=>{
+      const isActive = (btn.getAttribute('data-subtab')===sub);
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', isActive? 'true':'false');
+      btn.setAttribute('tabindex', isActive? '0':'-1');
+    });
+    const fpPane=document.getElementById('npPaneFP');
+    const unitPane=document.getElementById('npPaneUnit');
+    if (fpPane) fpPane.classList.toggle('tab-hidden', sub!=='fp');
+    if (unitPane) unitPane.classList.toggle('tab-hidden', sub!=='unit');
+    // Collapse any expanded unit details when switching away
+    if (sub!=='unit'){
+      const open=document.querySelector('tr.unit-details');
+      if(open){ const btn=document.querySelector('button.unit-exp[aria-expanded="true"]'); if(btn){ btn.setAttribute('aria-expanded','false'); btn.textContent='▸'; } try{ open.parentNode.removeChild(open); }catch(e){} window.__unitExpKey=null; }
+    }
+    if (sub==='unit'){ try{ if (typeof window.__renderUnitPricingSection==='function') window.__renderUnitPricingSection(); }catch(e){} }
+  }
+
+  function wireNPSubtabs(){
+    const bar=document.getElementById('npSubtabBar'); if(!bar || bar.__wired) return; bar.__wired=true;
+    const activate=(sub)=>{ setNPSubtab(sub); applyNPSubtabUI(sub); };
+    bar.addEventListener('click', (e)=>{ const b=e.target.closest('[role="tab"][data-subtab]'); if(!b) return; e.preventDefault(); activate(b.getAttribute('data-subtab')); });
+    bar.addEventListener('keydown', (e)=>{
+      const tabs=Array.from(bar.querySelectorAll('[role="tab"]'));
+      const idx=tabs.indexOf(document.activeElement);
+      if (e.key==='ArrowRight' || e.key==='ArrowLeft'){
+        e.preventDefault(); const dir=(e.key==='ArrowRight')?1:-1; const next=tabs[(idx+dir+tabs.length)%tabs.length]; if(next) next.focus();
+      } else if (e.key==='Enter' || e.key===' '){
+        const t=document.activeElement.closest('[role="tab"][data-subtab]'); if (t){ e.preventDefault(); activate(t.getAttribute('data-subtab')); }
+      }
+    });
+    // Force default to Floorplan on load
+    setNPSubtab('fp');
+    applyNPSubtabUI('fp');
+  }
+
+  document.addEventListener('DOMContentLoaded', wireNPSubtabs);
+  // Step 69: Base-stage clamp helper (global)
+  window.clampBaseToFPCaps = function(base, fpCode){
+    try{
+      const setup = window.propertySetup || {};
+      const fps = setup.floorplans || [];
+      const fp = fps.find(x => String(x.code||'') === String(fpCode||''));
+      if (!fp) return base;
+      const lo = (fp.price_floor_dollars === '' || fp.price_floor_dollars == null) ? -Infinity : Number(fp.price_floor_dollars);
+      const hi = (fp.price_ceiling_dollars === '' || fp.price_ceiling_dollars == null) ?  Infinity : Number(fp.price_ceiling_dollars);
+      let clamped = base;
+      if (Number.isFinite(lo)) clamped = Math.max(clamped, lo);
+      if (Number.isFinite(hi)) clamped = Math.min(clamped, hi);
+      return clamped;
+    }catch(e){ return base; }
+  };
+  // Step 58: Lock Mode (local-only) — Draft vs Published (read-only structural)
+  function $(id){ return document.getElementById(id); }
+  function lockKey(){ const ps=window.propertySetup||{}; const pid=ps.property_id||ps.property_name||'default'; return `rm:lockMode:${pid}`; }
+  function getLockMode(){ try{ return localStorage.getItem(lockKey())||'draft'; }catch(e){ return 'draft'; } }
+  function setLockMode(v){ try{ localStorage.setItem(lockKey(), String(v||'draft')); }catch(e){} }
+
+  function renderLockSwitch(){
+    const mode = getLockMode();
+    const d = $('btnModeDraft'), p=$('btnModePublished'), chip=$('lockModeChip');
+    if (d) d.classList.toggle('primary', mode==='draft');
+    if (p) p.classList.toggle('primary', mode==='published');
+    if (chip) chip.textContent = 'Mode: ' + (mode==='published'?'Published':'Draft');
+  }
+
+  function applyLockState(){
+    const mode = getLockMode(); const pub = (mode==='published');
+    function setRO(qs){ document.querySelectorAll(qs).forEach(el=>{ if(pub){ el.setAttribute('disabled','disabled'); el.setAttribute('readonly','readonly'); el.classList.add('readonly'); } else { el.removeAttribute('disabled'); el.removeAttribute('readonly'); el.classList.remove('readonly'); } }); }
+    // Structural fields in FP Settings
+    setRO('#fpSettingsCard [data-fp-field="code"],#fpSettingsCard [data-fp-field="name"],#fpSettingsCard [data-fp-field="units"],#fpSettingsCard [data-fp-field="refask"]');
+    // Add/Delete controls
+    (function(){ const add=$('addFPBtn'); if(add){ if(pub){ add.setAttribute('disabled','disabled'); add.classList.add('readonly'); } else { add.removeAttribute('disabled'); add.classList.remove('readonly'); } }})();
+    document.querySelectorAll('#fpSettingsCard [data-action="del"]').forEach(btn=>{ if(pub){ btn.setAttribute('disabled','disabled'); btn.classList.add('readonly'); } else { btn.removeAttribute('disabled'); btn.classList.remove('readonly'); }});
+    // Floorplan Map: selects and Save/Clear disabled in Published
+    document.querySelectorAll('#fpMapTableBody select').forEach(sel=>{ if(pub){ sel.setAttribute('disabled','disabled'); sel.classList.add('readonly'); } else { sel.removeAttribute('disabled'); sel.classList.remove('readonly'); } });
+    const mSave=$('fpMapSaveBtn'), mClr=$('fpMapClearBtn');
+    [mSave,mClr,$('fpMapSave'),$('fpMapClear')].forEach(b=>{ if(!b) return; if(pub){ b.setAttribute('disabled','disabled'); b.classList.add('readonly'); } else { b.removeAttribute('disabled'); b.classList.remove('readonly'); } });
+  }
+
+  function wireLock(){
+    const d=$('btnModeDraft'), p=$('btnModePublished');
+    if (d) d.addEventListener('click', ()=>{ setLockMode('draft'); renderLockSwitch(); applyLockState(); });
+    if (p) p.addEventListener('click', ()=>{ setLockMode('published'); renderLockSwitch(); applyLockState(); });
+    renderLockSwitch(); applyLockState();
+  }
+
+  // Expose for renderers
+  window.__applyLockState = applyLockState; window.__renderLockSwitch = renderLockSwitch;
+  document.addEventListener('DOMContentLoaded', wireLock);
+})();
+</script>
+
+<script>
+(function(){
+  // Step 59R: Autocapture labels (unified candidates key)
+  function uniqueLabels(rows){ const s = new Set(); (rows||[]).forEach(r=>{ const v = String(r.Floorplan||'').trim(); if (v) s.add(v); }); return Array.from(s); }
+  function fpMapCandidatesKey(){ const ps=(window.propertySetup||{}); const pid=ps.property_id||ps.property_name||'default'; return `rm:fpmap:candidates:${pid}`; }
+  function loadFPCandidates(){ try{ const raw=localStorage.getItem(fpMapCandidatesKey()); return raw? JSON.parse(raw): []; }catch(e){ return []; } }
+  function saveFPCandidates(list){ try{ localStorage.setItem(fpMapCandidatesKey(), JSON.stringify(list||[])); }catch(e){} }
+
+  const cm = document.getElementById('confirmMapping');
+  if (cm) cm.addEventListener('click', ()=> setTimeout(capture, 60));
+
+  let lastSig = '';
+  const iv = setInterval(() => {
+    const rows = Array.isArray(window.mappedRows) ? window.mappedRows : null;
+    if (!rows || rows.length === 0) return;
+    const sig = rows.length + ':' + Object.keys(rows[0]||{}).join(',');
+    if (sig === lastSig) return;
+    lastSig = sig;
+    capture();
+  }, 400);
+
+  function capture(){
+    try{
+      const rows = Array.isArray(window.mappedRows) ? window.mappedRows : [];
+      const labels = uniqueLabels(rows);
+      if (labels.length){
+        saveFPCandidates(labels);
+        if (typeof renderFPMapCard === 'function') renderFPMapCard();
+      }
+    }catch(e){}
+  }
+})();
+</script>
+
+<script>
+// Step 59R: Floorplan Map — options from Settings, unified candidates, session-gated render
+(function(){
+  function $(id){ return document.getElementById(id); }
+  // Storage keys (canonical names)
+  function fpMapStorageKey(){ const ps=window.propertySetup||{}; const pid=ps.property_id||ps.property_name||'default'; return `rm:fpmap:${pid}`; }
+  function fpMapCandidatesKey(){ const ps=window.propertySetup||{}; const pid=ps.property_id||ps.property_name||'default'; return `rm:fpmap:candidates:${pid}`; }
+  function loadFPMap(){ try{ return JSON.parse(localStorage.getItem(fpMapStorageKey())) || {}; }catch(e){ return {}; } }
+  function saveFPMap(map){ try{ localStorage.setItem(fpMapStorageKey(), JSON.stringify(map||{})); }catch(e){} }
+  function clearFPMap(){ try{ localStorage.removeItem(fpMapStorageKey()); }catch(e){} }
+  function loadFPCandidates(){ try{ return JSON.parse(localStorage.getItem(fpMapCandidatesKey())) || []; }catch(e){ return []; } }
+  function saveFPCandidates(labels){ try{ localStorage.setItem(fpMapCandidatesKey(), JSON.stringify(labels||[])); }catch(e){} }
+  function clearFPCandidates(){ try{ localStorage.removeItem(fpMapCandidatesKey()); }catch(e){} }
+  function getFPNameByCode(code){ try{ const list=(window.propertySetup&&window.propertySetup.floorplans)||[]; const fp=list.find(x=>String(x.code||'')===String(code||'')); return fp? (fp.name||'') : ''; }catch(e){ return ''; } }
+  function getCodes(){ try{ return ((window.propertySetup&&window.propertySetup.floorplans)||[]).map(fp=>String(fp.code||'').trim()).filter(Boolean); }catch(e){ return []; } }
+
+  // Session upload flag
+  const SS_FLAG = 'rm:session:hasUpload';
+  function setHasUpload(){ try{ sessionStorage.setItem(SS_FLAG,'1'); }catch(e){} }
+  function hasUpload(){ try{ return sessionStorage.getItem(SS_FLAG)==='1'; }catch(e){ return false; } }
+  window.setHasUpload = setHasUpload; window.hasUpload = hasUpload;
+
+  // Capture labels from latest upload (mappedRows), suggest defaults, and refresh card
+  function captureFPLabelsFromUpload(){
+    try{
+      const rows = window.mappedRows || [];
+      const labels = Array.from(new Set(rows.map(r=> String(r.Floorplan||'').trim()).filter(Boolean))).sort();
+      saveFPCandidates(labels);
+      autoMapFromSettings();
+      if (typeof renderFPMapCard==='function') renderFPMapCard();
+    }catch(e){}
+  }
+
+  // Auto-map based on Settings codes (exact or first-token)
+  function autoMapFromSettings(){
+    try{
+      const labels = loadFPCandidates();
+      if (!labels || !labels.length) return;
+      const codes = getCodes(); if (!codes.length) return;
+      const codeLC = codes.map(c=>String(c).toLowerCase());
+      const map = loadFPMap(); let changed=false;
+      const firstTok = s=> (String(s||'').replace(/[×✕✖]/g,'x').trim().split(/\s+/)[0]||'').toLowerCase();
+      labels.forEach(lbl=>{
+        if (map[lbl]) return;
+        const n = String(lbl||'').trim().toLowerCase();
+        const t = firstTok(lbl);
+        const idxExact = codeLC.indexOf(n);
+        const idxTok = codeLC.indexOf(t);
+        if (idxExact>=0) { map[lbl]=codes[idxExact]; changed=true; }
+        else if (idxTok>=0) { map[lbl]=codes[idxTok]; changed=true; }
+      });
+      if (changed){ saveFPMap(map); const chip=document.getElementById('fpMapSavedChip'); if (chip) chip.textContent='Saved locally ' + new Date().toLocaleTimeString(); if (typeof renderFPMapCard==='function') renderFPMapCard(); }
+    }catch(e){}
+  }
+  window.autoMapFromSettings = autoMapFromSettings;
+
+  // Render mapping card using candidates; hide if no upload this session
+  window.renderFPMapCard = function renderFPMapCard(){
+    const tbody = $('fpMapTableBody'); const empty = $('fpMapEmptyAlt');
+    if (!tbody || !empty) return;
+    const labels = loadFPCandidates(); const map = loadFPMap(); const codes = getCodes();
+    tbody.innerHTML = '';
+    if (!hasUpload() || !labels.length){ empty.textContent='No rent roll uploaded yet.'; empty.style.display='block'; return; }
+    empty.style.display='none';
+    labels.forEach(lbl=>{
+      const tr=document.createElement('tr');
+      const tdL=document.createElement('td'); tdL.textContent=lbl; tr.appendChild(tdL);
+      const tdS=document.createElement('td');
+      const sel=document.createElement('select'); sel.setAttribute('aria-label', `Map ${lbl} to code`);
+      const opt0=document.createElement('option'); opt0.value=''; opt0.textContent='(Select code)'; sel.appendChild(opt0);
+      codes.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+      sel.value = map[lbl] || '';
+      sel.addEventListener('change', ()=>{ const m=loadFPMap(); if(sel.value) m[lbl]=sel.value; else delete m[lbl]; saveFPMap(m); renderFPMapCard(); const chip=$('fpMapSavedChip'); if(chip) chip.textContent='Saved locally ' + new Date().toLocaleTimeString(); });
+      tdS.appendChild(sel); tr.appendChild(tdS);
+      const tdP=document.createElement('td'); const code=map[lbl]||''; const name= code? getFPNameByCode(code):''; tdP.textContent = code? (name? `${code} — ${name}` : code) : '—'; tr.appendChild(tdP);
+      tbody.appendChild(tr);
+    });
+    try{ if (typeof window.__applyLockState==='function') window.__applyLockState(); }catch(e){}
+  };
+
+  function bindFPMapButtons(){
+    const save=$('fpMapSaveBtn'); const clr=$('fpMapClearBtn'); const clrLegacy=$('fpMapClear');
+    if (save) save.addEventListener('click', ()=>{ const chip=$('fpMapSavedChip'); if (chip) chip.textContent='Saved locally ' + new Date().toLocaleTimeString(); });
+    const doClear = ()=>{ if (!confirm('Clear all label→code mappings for this property?')) return; clearFPMap(); clearFPCandidates(); renderFPMapCard(); const chip=$('fpMapSavedChip'); if (chip) chip.textContent='Cleared'; };
+    if (clr) clr.addEventListener('click', doClear);
+    if (clrLegacy) clrLegacy.addEventListener('click', doClear);
+  }
+
+  // Wire on load and on mapping confirm
+  document.addEventListener('DOMContentLoaded', ()=>{ try{ renderFPMapCard(); bindFPMapButtons(); }catch(e){} });
+  const cm=document.getElementById('confirmMapping'); if (cm){ cm.addEventListener('click', ()=> setTimeout(()=>{ try{ if (typeof setHasUpload==='function') setHasUpload(); captureFPLabelsFromUpload(); }catch(e){} }, 60)); }
+})();
+</script>
+
+<script>
+// Step 56: Floorplan CODE mapping + normalization and New Pricing override
+(function(){
+  function $(id){ return document.getElementById(id); }
+  const MAP_NS = 'rm:fpmap:';
+  function getFPMapKey(){ const ps=(window.propertySetup||{}); return MAP_NS + (ps.property_id || ps.property_name || 'default'); }
+  function getAllCodes(){ try{ return (window.propertySetup.floorplans||[]).map(f=>String(f.code||'')).filter(Boolean);}catch(e){return [];} }
+  function loadFPMap(){ try{ const raw=localStorage.getItem(getFPMapKey()); return raw? JSON.parse(raw) : {}; }catch(e){ return {}; } }
+  function saveFPMap(map){ try{ localStorage.setItem(getFPMapKey(), JSON.stringify(map||{})); }catch(e){} }
+  function clearFPMap(){ try{ localStorage.removeItem(getFPMapKey()); }catch(e){} }
+  function uniqueLabels(rows){ const s=new Set(); (rows||[]).forEach(r=>{ const v=String(r.Floorplan||'').trim(); if(v) s.add(v); }); return Array.from(s); }
+  function applyFPMapToRows(rows, map, codes){ const out=[]; const unm=new Set(); const set=new Set(codes||[]); (rows||[]).forEach(r=>{ const lbl=String(r.Floorplan||'').trim(); let code = map && map[lbl]; if(!code && set.has(lbl)) code=lbl; if(code) out.push(Object.assign({}, r, { FP_CODE: code, FloorplanLabel: lbl })); else { unm.add(lbl); out.push(Object.assign({}, r, { FloorplanLabel: lbl })); } }); return { rows: out, unmapped: unm }; }
+
+  function renderFPMapCard(){
+    /* Legacy renderer (fpMapWrap/fpMapEmpty). Disabled in Step 57 in favor of table-based renderer. */
+  }
+
+  function normalizeRentRoll(){
+    const rows = Array.isArray(window.mappedRows) ? window.mappedRows : [];
+    const map = loadFPMap(); const codes = getAllCodes();
+    const res = applyFPMapToRows(rows, map, codes);
+    window.normRows = res.rows; window.unmappedLabels = Array.from(res.unmapped||[]);
+    try{
+      // Step 67: Auto-refresh charts from rent roll if mapping is valid
+      if (Array.isArray(window.normRows) && window.normRows.length){
+        if (typeof window.refreshChartsFromRentRoll==='function') window.refreshChartsFromRentRoll();
+        const unm = window.unmappedLabels||[];
+        if (typeof window.hasUpload==='function' && window.hasUpload() && unm.length===0){
+          if (typeof setTabDisabled==='function') setTabDisabled('charts', false);
+        }
+      }
+    }catch(e){}
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{ try{ renderFPMapCard(); }catch(e){} try{ normalizeRentRoll(); }catch(e){} });
+  const cm = document.getElementById('confirmMapping'); if (cm) cm.addEventListener('click', ()=> setTimeout(()=>{ try{ if (typeof setHasUpload==='function') setHasUpload(); renderFPMapCard(); normalizeRentRoll(); if (typeof window.refreshChartsFromRentRoll==='function') window.refreshChartsFromRentRoll(); }catch(e){} }, 60));
+
+  // Guard New run if unmapped
+  if (typeof window.canRun === 'function'){
+    const _old = window.canRun;
+    window.canRun = function(){ const ok=_old(); if(!ok) return false; try{ normalizeRentRoll(); }catch(e){} const unm = window.unmappedLabels||[]; if (unm.length){ const nl=$('nlTables'); if(nl){ nl.innerHTML = `<div class=\"note\" style=\"border:1px solid #7f1d1d;background:#1b0f12;color:#fca5a5;padding:8px;border-radius:8px;\">Unmapped floorplan labels: ${unm.slice(0,12).join(', ')}. <a href=\"#\" id=\"goMap\">Map them on Settings → Floorplan Map</a>.</div>`; setTimeout(()=>{ const a=$('goMap'); if (a) a.onclick=(e)=>{ e.preventDefault(); if (typeof setTab==='function') setTab('settings'); const card=$('fpMapCard'); if(card) card.scrollIntoView({behavior:'smooth'}); }; },0);} return false; } return true; };
+  }
+
+  // Normalize New Pricing to use FP_CODE grouping while preserving UI
+  if (typeof window.renderNewLease === 'function'){
+    const _origRender = window.renderNewLease;
+    window.renderNewLease = function(cfg, norm, tState){
+      const rows = (Array.isArray(window.normRows) && window.normRows.some(r=>r.FP_CODE))
+        ? window.normRows.map(r=> Object.assign({}, r, { Floorplan: r.FP_CODE }))
+        : (norm||[]);
+      _origRender(cfg, rows, tState);
+      // Add normalization footnote
+      const wrap = $('nlTables'); if (wrap){ wrap.insertAdjacentHTML('afterbegin', '<div class="note">Floorplans normalized to codes; CSV labels shown for reference only.</div>'); }
+    };
+  }
+})();
+</script>
+
+<script>
+(function(){
+  // Step 52: Floorplan Settings manual editor (Settings tab)
+  function $(id){ return document.getElementById(id); }
+  function clamp(x, lo, hi){ return Math.min(Math.max(x, lo), hi); }
+  function toInt(v, d=0){ const n=Number(v); return Number.isFinite(n)? Math.round(n): d; }
+  // Note: clampBaseToFPCaps is defined globally for reuse across modules.
+  function normalizeCode(s){ return String(s||'').trim().replace(/\s+/g,' '); }
+  const LS_KEY = 'rm:propertySetup:floorplans';
+
+  // Initialize state
+  window.propertySetup = window.propertySetup || {
+    community_settings: { target_occupancy_pct: 95 },
+    floorplans: []
+  };
+
+  // Helpers: compute duplicate codes map
+  function dupMap(rows){ const m=new Map(); for(const r of rows){ const c=normalizeCode(r.code); if(!c) continue; m.set(c,(m.get(c)||0)+1);} return m; }
+  function bandIssues(low, high){
+    const out = { lowGtHigh:false, outOfRange:false };
+    const l=Number(low), h=Number(high);
+    if (Number.isFinite(l) && Number.isFinite(h) && l>h) out.lowGtHigh=true;
+    if ((l && (l<70 || l>100)) || (h && (h<70 || h>100))) out.outOfRange = true;
+    return out;
+  }
+
+  // Validity checks for saving
+  function isRowValid(r){
+    if (!String(r.code||'').trim()) return false;
+    if (!String(r.name||'').trim()) return false;
+    const l = Number(r.band_low_pct), h = Number(r.band_high_pct);
+    if (!Number.isFinite(l) || !Number.isFinite(h)) return false;
+    if (l<70 || l>100 || h<70 || h>100) return false;
+    if (l>h) return false;
+    if (Number(r.units)<0) return false;
+    if (Number(r.gap_to_next_tier_dollars)<0) return false;
+    if (Number(r.reference_ask)<0) return false;
+    if (r.price_floor_dollars!=null && String(r.price_floor_dollars)!=='' && Number(r.price_floor_dollars)<0) return false;
+    if (r.price_ceiling_dollars!=null && String(r.price_ceiling_dollars)!=='' && Number(r.price_ceiling_dollars)<0) return false;
+    return true;
+  }
+  function isTableValid(){
+    const rows = window.propertySetup.floorplans || [];
+    const dups = dupMap(rows);
+    for(const r of rows){ if (String(r.code||'') && dups.get(normalizeCode(r.code))>1) return false; }
+    return rows.every(isRowValid);
+  }
+
+  function updateSavedChip(text){
+    const chip = document.getElementById('fpSavedChip');
+    if (!chip) return;
+    if (text){ chip.textContent = text; chip.style.display='inline-block'; }
+    else { chip.textContent=''; chip.style.display='none'; }
+  }
+
+  function saveFPsLocal(){
+    try{
+      const rows = (window.propertySetup.floorplans || []).map(r=>{
+        const { stop_down_buffer_dollars, ...rest } = (r||{});
+        return rest;
+      });
+      window.propertySetup.floorplans = rows; // normalize in-memory as well
+      localStorage.setItem(LS_KEY, JSON.stringify(rows));
+      const t = new Date().toLocaleTimeString();
+      updateSavedChip('Saved locally ' + t);
+    }catch(e){ /* ignore */ }
+  }
+  function maybeSaveLocal(){ if (isTableValid()) saveFPsLocal(); }
+  function loadFPsLocal(){
+    try{
+      const rows = window.propertySetup.floorplans || [];
+      if (rows.length) return;
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        window.propertySetup.floorplans = parsed.map(r=>{ const { stop_down_buffer_dollars, ...rest } = (r||{}); return rest; });
+      }
+    }catch(e){ /* ignore */ }
+  }
+
+  // Render table body from state
+  function renderFPTable(){
+    const tbody = $('fpTableBody'); if(!tbody) return;
+    const rows = window.propertySetup.floorplans || [];
+    const dups = dupMap(rows);
+    const esc = s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    // derive bedroom tiers once to disable gap field on lowest tier
+    function _bedOf(code,name){
+      const c=String(code||''); const s=(String(code||'')+' '+String(name||'')).toLowerCase();
+      if (/\b(s0|studio|0x1)\b/i.test(c) || /\b(studio|0x1)\b/.test(String(name||'').toLowerCase())) return 0;
+      if (/\b1x1\b/i.test(s) || /\b1\s*br\b/i.test(s)) return 1;
+      if (/\b2x2\b/i.test(s) || /\b2\s*br\b/i.test(s)) return 2;
+      if (/\b3x\d\b/i.test(s) || /\b3\s*br\b/i.test(s)) return 3;
+      if (/\b4x\d\b/i.test(s) || /\b4\s*br\b/i.test(s)) return 4;
+      if (/^a/i.test(c)) return 1; if (/^b/i.test(c)) return 2; if (/^c/i.test(c)) return 3;
+      const m1=s.match(/(\d)\s*br/); if(m1) return parseInt(m1[1]); const m2=s.match(/(\d)\s*x\s*(\d)/); if(m2) return parseInt(m2[1]);
+      return 1;
+    }
+    const minTier = rows.length ? Math.min(...rows.map(r=>_bedOf(r.code,r.name))) : 0;
+    const maxTier = rows.length ? Math.max(...rows.map(r=>_bedOf(r.code,r.name))) : 0;
+
+    tbody.innerHTML = rows.map((r,idx)=>{
+      const code = normalizeCode(r.code);
+      const issues = bandIssues(r.band_low_pct, r.band_high_pct);
+      const badges = [];
+      if (code && dups.get(code)>1) badges.push('<span class="badge danger">Duplicate code</span>');
+      if (issues.lowGtHigh) badges.push('<span class="badge danger">Low > High</span>');
+      if (issues.outOfRange) badges.push('<span class="badge warn">Outside range</span>');
+      const reqClass = (v)=> (String(v||'').trim()? '' : 'invalid');
+      return `<tr data-row="${idx}">
+        <td style="color:#94a3b8">⋮⋮</td>
+        <td>
+          ${badges.join(' ')}
+          <input type="text" maxlength="12" value="${esc(r.code)}" aria-label="Code" class="${reqClass(r.code)}" data-k="code" data-i="${idx}" data-fp-field="code" style="width:120px" />
+        </td>
+        <td>
+          <input type="text" maxlength="40" value="${esc(r.name)}" aria-label="Name" class="${reqClass(r.name)}" data-k="name" data-i="${idx}" data-fp-field="name" style="width:160px" />
+        </td>
+        <td>
+          <input type="number" step="1" min="0" value="${toInt(r.units,0)}" aria-label="Units" data-k="units" data-i="${idx}" data-fp-field="units" style="width:90px" />
+        </td>
+        <td>
+          <input type="number" step="0.5" min="70" max="100" value="${Number(r.band_low_pct||0)}" aria-label="Band Low %" data-k="band_low_pct" data-i="${idx}" data-fp-field="bandlow" style="width:110px" />
+        </td>
+        <td>
+          <input type="number" step="0.5" min="70" max="100" value="${Number(r.band_high_pct||0)}" aria-label="Band High %" data-k="band_high_pct" data-i="${idx}" data-fp-field="bandhigh" style="width:110px" />
+        </td>
+        <td>
+          ${(_bedOf(r.code,r.name)===maxTier)
+            ? `<input type="number" step="1" min="0" value="0" aria-label="Min Gap to Next Tier $" data-k="gap_to_next_tier_dollars" data-i="${idx}" data-fp-field="gapnew" style="width:170px" disabled readonly class="readonly" />`
+            : `<input type=\"number\" step=\"1\" min=\"0\" value=\"${toInt(r.gap_to_next_tier_dollars||0,0)}\" aria-label=\"Min Gap to Next Tier $\" data-k=\"gap_to_next_tier_dollars\" data-i=\"${idx}\" data-fp-field=\"gapnew\" style=\"width:170px\" />`}
+        </td>
+        <td>
+          <input type="number" step="1" min="0" value="${toInt(r.reference_ask||0,0)}" aria-label="Starting Rent $" data-k="reference_ask" data-i="${idx}" data-fp-field="refask" style="width:130px" />
+        </td>
+        <td>
+          <input type="number" step="1" min="0" value="${(r.price_floor_dollars!=null&&String(r.price_floor_dollars)!=='')?toInt(r.price_floor_dollars,0):''}" aria-label="Price Floor ($)" data-k="price_floor_dollars" data-i="${idx}" data-fp-field="pfloor" style="width:120px" />
+        </td>
+        <td>
+          <input type="number" step="1" min="0" value="${(r.price_ceiling_dollars!=null&&String(r.price_ceiling_dollars)!=='')?toInt(r.price_ceiling_dollars,0):''}" aria-label="Price Ceiling ($)" data-k="price_ceiling_dollars" data-i="${idx}" data-fp-field="pceil" style="width:120px" />
+        </td>
+        <td>
+          <button class="btn xs" data-action="del" data-i="${idx}" aria-label="Delete row">🗑️</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    // Wire inputs
+    tbody.querySelectorAll('input').forEach(inp=>{
+      inp.addEventListener('input', onInputValidate);
+      inp.addEventListener('change', onCommit);
+      inp.addEventListener('blur', onCommit);
+    });
+    tbody.querySelectorAll('[data-action="del"]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{ e.preventDefault(); deleteFPRow(Number(btn.dataset.i)); });
+    });
+    try{ if (typeof window.__applyLockState==='function') window.__applyLockState(); }catch(e){}
+  }
+
+  function onInputValidate(e){
+    const inp = e.target; const key = inp.dataset.k;
+    if (inp.type==='text'){
+      const v = String(inp.value||'').trim();
+      inp.classList.toggle('invalid', v.length===0);
+    } else if (inp.type==='number'){
+      const v = inp.value;
+      const isNum = v!=='' && !isNaN(Number(v));
+      inp.classList.toggle('invalid', !isNum);
+      if (isNum && (key==='band_low_pct' || key==='band_high_pct')){
+        const n = Number(v);
+        inp.classList.toggle('warn', n<70 || n>100);
+      } else {
+        inp.classList.remove('warn');
+      }
+    }
+  }
+
+  function onCommit(e){
+    const inp = e.target; const idx = Number(inp.dataset.i); const key = inp.dataset.k;
+    if (!key || Number.isNaN(idx)) return;
+    let val = inp.type==='number' ? Number(inp.value) : inp.value;
+    setFP(idx, key, val);
+  }
+
+  function addFPRow(){
+    const rows = window.propertySetup.floorplans || (window.propertySetup.floorplans=[]);
+    rows.push({ code:"", name:"", units:0, band_low_pct:93, band_high_pct:96, gap_to_next_tier_dollars:0, reference_ask:0, price_floor_dollars:'', price_ceiling_dollars:'' });
+    renderFPTable();
+    maybeSaveLocal();
+  }
+
+  function deleteFPRow(idx){
+    const rows = window.propertySetup.floorplans || [];
+    if (idx>=0 && idx<rows.length){ rows.splice(idx,1); renderFPTable(); }
+    maybeSaveLocal();
+  }
+
+  function setFP(idx, key, value){
+    const rows = window.propertySetup.floorplans || [];
+    if (!rows[idx]) return;
+    if (key==='code') value = normalizeCode(value).slice(0,12);
+    if (key==='name') value = String(value||'').slice(0,40);
+    if (key==='units' || key==='reference_ask' || key==='gap_to_next_tier_dollars' || key==='price_floor_dollars' || key==='price_ceiling_dollars'){
+      if (String(value)===''){ rows[idx][key] = ''; renderFPTable(); return; }
+      value = Math.max(0, toInt(value,0));
+    }
+    if (key==='band_low_pct' || key==='band_high_pct') value = clamp(Math.round(Number(value||0)*2)/2, 70, 100);
+    rows[idx][key] = value;
+    // Only re-render table (badges/validation). No other side effects.
+    renderFPTable();
+    maybeSaveLocal();
+  }
+
+  // Prefill from mapped rent roll if present
+  function normalizeLabel(s){ return String(s||'').replace(/[×✕✖]/g,'x').trim().replace(/\s+/g,' ').toLowerCase(); }
+  function firstToken(label){ const raw=String(label||'').replace(/[×✕✖]/g,'x').trim().replace(/\s+/g,' '); return (raw.split(/\s+/)[0]||'').replace(/[^A-Za-z0-9]/g,''); }
+  function codeFromLabel(label){ const tok=firstToken(label); const sanitized = tok || String(label||'').replace(/[^A-Za-z0-9]/g,''); return (sanitized||'FP').slice(0,12); }
+  function prefillFromRentRoll(){
+    const mr = Array.isArray(window.mappedRows) ? window.mappedRows : null;
+    if (!mr || !mr.length) return;
+    const freq = new Map();
+    for(const r of mr){ const lbl=String(r.Floorplan||'').trim(); const key=normalizeLabel(lbl); if (!key) continue; const cur=freq.get(key)||{label:lbl,units:0}; cur.units++; if(!cur.label) cur.label=lbl; freq.set(key,cur); }
+    const out=[];
+    for(const {label,units} of freq.values()){
+      const code = codeFromLabel(label);
+      const small = (units<15);
+      out.push({ code, name: label, units, band_low_pct: small?92:93, band_high_pct: small?97:96, gap_to_next_tier_dollars:0, reference_ask:0, price_floor_dollars:'', price_ceiling_dollars:'' });
+    }
+    window.propertySetup.floorplans = out;
+    renderFPTable();
+    saveFPsLocal();
+    try{ if (typeof window.__applyLockState==='function') window.__applyLockState(); }catch(e){}
+  }
+
+  function mergeFromRentRoll(){
+    const mr = Array.isArray(window.mappedRows) ? window.mappedRows : null;
+    if (!mr || !mr.length) return;
+    const freq = new Map();
+    for(const r of mr){ const lbl=String(r.Floorplan||'').trim(); const key=normalizeLabel(lbl); if (!key) continue; const cur=freq.get(key)||{label:lbl,units:0}; cur.units++; if(!cur.label) cur.label=lbl; freq.set(key,cur); }
+    const rows = window.propertySetup.floorplans || (window.propertySetup.floorplans=[]);
+    const byCode = new Map(rows.map((r,i)=>[String(r.code||'').toLowerCase(), {i,r}]));
+    const byName = new Map(rows.map((r,i)=>[normalizeLabel(r.name||''), {i,r}]));
+    const usedCodes = new Set(rows.map(r=>String(r.code||'').toLowerCase()).filter(Boolean));
+    const add=[];
+    for(const {label,units} of freq.values()){
+      const tok = firstToken(label).toLowerCase();
+      let t = byCode.get(tok) || byName.get(normalizeLabel(label));
+      if (t){ rows[t.i].units = units; }
+      else {
+        let c = codeFromLabel(label); let base=c.toLowerCase(); let n=1; while(usedCodes.has(base)){ n++; c=(c+n).slice(0,12); base=c.toLowerCase(); }
+        usedCodes.add(base);
+        const small=(units<15);
+        add.push({ code:c, name:label, units, band_low_pct: small?92:93, band_high_pct: small?97:96, gap_to_next_tier_dollars:0, reference_ask:0, price_floor_dollars:'', price_ceiling_dollars:'' });
+      }
+    }
+    if (add.length) rows.push(...add);
+    renderFPTable();
+    saveFPsLocal();
+    try{ if (typeof window.__applyLockState==='function') window.__applyLockState(); }catch(e){}
+  }
+
+  function initFPSettings(){
+    const add = document.getElementById('addFPBtn'); if (add) add.addEventListener('click', addFPRow);
+    const pf = document.getElementById('prefillFromRR');
+    if (pf){
+      if (Array.isArray(window.mappedRows) && window.mappedRows.length){ pf.style.display='inline'; pf.addEventListener('click', (e)=>{ e.preventDefault(); const rows=(window.propertySetup&&window.propertySetup.floorplans)||[]; if (!rows.length) prefillFromRentRoll(); else mergeFromRentRoll(); if (typeof window.renderFPMapCard==='function') window.renderFPMapCard(); if (typeof window.autoMapFromSettings==='function') window.autoMapFromSettings(); }); }
+      else { pf.style.display = 'none'; }
+    }
+    // Local persistence controls
+    const clear = document.getElementById('fpClearLocal');
+    if (clear) clear.addEventListener('click', (e)=>{ e.preventDefault(); if (confirm('Clear locally saved data?')){ try{ localStorage.removeItem(LS_KEY);}catch(err){} try{ const ps=window.propertySetup||{}; const pid=ps.property_id||ps.property_name||'default'; localStorage.removeItem(`rm:fpmap:${pid}`); localStorage.removeItem(`rm:fpmap:candidates:${pid}`);}catch(err){} (window.propertySetup.floorplans=[]); renderFPTable(); try{ if (typeof window.renderFPMapCard==='function') window.renderFPMapCard(); }catch(err){} updateSavedChip('Cleared'); }});
+    const reset = document.getElementById('fpResetDefaults');
+    if (reset) reset.addEventListener('click', (e)=>{ e.preventDefault(); window.propertySetup.floorplans=[{ code:'A1', name:'1x1', units:0, band_low_pct:93, band_high_pct:96, reference_ask:0, price_floor_dollars:'', price_ceiling_dollars:'' }]; renderFPTable(); saveFPsLocal(); });
+
+    // Load any local persisted rows if current state is empty
+    loadFPsLocal();
+    renderFPTable();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initFPSettings);
+  else initFPSettings();
+})();
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="logo-emoji">🚀</span> Revenue Management</h1>
+  <div id="tabBar" style="position:sticky; top:0; z-index:100; background:var(--bg); padding:8px 0; margin:0 0 8px; border-bottom:1px solid #0b1326;">
+    <div class="actions" style="gap:8px; flex-wrap:wrap">
+      <button class="btn sm" data-tab="home">🏠 Home</button>
+      <button class="btn sm" data-tab="settings">⚙️ Settings</button>
+      <button class="btn sm" data-tab="newPricing">💵 New Pricing</button>
+      <button class="btn sm" data-tab="renewals">🔁 Renewals</button>
+      <button class="btn sm" data-tab="charts">📊 Charts</button>
+      <button class="btn sm" data-tab="history">🕒 History</button>
+    </div>
+  </div>
+
+      
+
+  <div class="grid">
+    <div class="panel">
+
+
+
+
+
+
+      <!-- Privacy -->
+      <div class="card">
+        <div class="note"><strong>Privacy:</strong> Files are parsed in your browser (no server upload). When we move to SaaS: encryption at rest & in transit, strict retention, and no third party sharing.</div>
+      </div>
+
+      <!-- Upload + Mapping -->
+      
+
+<!-- Removed Property card (Thorpe Gardens) -->
+<div class="card">
+        <h2 data-tab-scope="home">Upload Rent Roll</h2>
+        <input id="file" type="file" accept=".csv" />
+        <div id="automap" style="display:none; margin-top:12px">
+          <h3>Column Mapping (auto detected — adjust if needed)</h3>
+          <div id="mapTable" style="overflow:auto"></div>
+          <div id="validationBox" class="note"></div>
+          <button id="confirmMapping" class="btn" style="margin-top:8px">Confirm Mapping</button>
+      </div>
+      </div>
+      <div class="home-only">
+      
+  <div class="card">
+    <h2 data-tab-scope="home">Run & Export</h2>
+    <div class="home-actions">
+      <div class="home-group">
+        <div class="title">💵 New Pricing</div>
+        <div class="btnrow">
+          <button class="btn" id="homeRunNew" class="btn accent" class="btn accent">Run New</button>
+          <button class="btn secondary sm" id="homeExportNew">Export New</button>
+          <button class="btn xs" data-goto="newPricing">View</button>
+        </div>
+      </div>
+      <div class="home-group">
+        <div class="title">🔁 Renewals</div>
+        <div class="btnrow">
+          <button class="btn" id="homeRunRenew" class="btn accent" class="btn accent">Run Renewals</button>
+          <button class="btn secondary sm" id="homeExportRenew">Export Renew</button>
+          <button class="btn xs" data-goto="renewals">View</button>
+        </div>
+      </div>
+    </div>
+    <!-- Hidden fallbacks for legacy code; auto-synced from target -->
+    <input id="comfortLow" type="hidden" value="93">
+    <input id="comfortHigh" type="hidden" value="96">
+  </div>
+
+      <!-- Status 45: Forward-looking widget (placed under Run & Export) -->
+      <div class="card" data-tab-scope="home" id="status45-card">
+        <h2 data-tab-scope="home">Status at a Glance</h2>
+        <div class="status45">
+
+          <!-- Row 1: KPI tiles -->
+          <div class="kpi-row">
+            <!-- Trending Occupancy -->
+            <div class="tile" id="kpi_trending_occ">
+              <h3>Trending Occupancy</h3>
+              <div class="big" data-kpi="trendingOcc">—</div>
+              <div class="sub">
+                Today <span data-kpi="todayOcc">—</span> • Target <span data-kpi="targetOcc">—</span>
+                <span class="pill neutral">Occ + Preleased − On-Notice</span>
+      </div>
+      </div>
+
+      
+
+            <!-- Pacing to Target -->
+            <div class="tile" id="kpi_pacing_gap">
+              <h3>Pacing to Target</h3>
+              <div class="big" data-kpi="gapPP">—</div>
+              <div class="sub">Need <span data-kpi="homesNeeded">—</span> homes</div>
+            </div>
+
+            <!-- Undecided Renewals (30d) -->
+            <div class="tile" id="kpi_undecided_30d" style="cursor:pointer">
+              <h3>Undecided Renewals (30d)</h3>
+              <div class="big"><span data-kpi="undecided30d">—</span></div>
+              <div class="sub">of <span data-kpi="expiring30d">—</span> expiring</div>
+            </div>
+
+            <div class="tile hidden-soft" id="kpi_velocity_7d">
+              <h3>Leasing Pacing (7d)</h3>
+              <div class="big"><span data-kpi="pacingPP">—</span></div>
+              <div class="sub"><span data-kpi="approvals7d">—</span> approvals • conv <span data-kpi="convPct">—</span></div>
+            </div>
+          </div>
+
+          <!-- Row 2: Alerts -->
+          <div class="alerts-row">
+            <div class="alert-card" id="alert_struggling_fps">
+              <h4>Struggling Floorplans <span class="pill neutral" data-kpi="strugglingCount">0</span></h4>
+              <ul class="alert-list" data-list="fps"></ul>
+            </div>
+
+            <div class="alert-card" id="alert_stale_units">
+              <h4>Stale Vacancies (≥30d) <span class="pill neutral" data-kpi="staleCount">0</span></h4>
+              <ul class="alert-list" data-list="stale"></ul>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+
+
+
+</div>
+
+      
+
+      <!-- Strategy -->
+      <div class="card">
+        <h2 data-tab-scope="settings">Global</h2>
+        <div class="row" id="comfortTargetRow">
+          <div style="max-width: 200px;">
+            <label>
+              <span class="iwrap">Comfort Target Trend %
+                <span class="help">i</span>
+                <span class="itip">Single target trending occupancy (e.g., 95). We will switch logic in a later step.</span>
+              </span>
+            </label>
+            <input id="comfortTarget" type="number" step="0.1" min="80" max="100" value="95" placeholder="e.g., 95">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <!-- Low/High controls removed in favor of single target -->
+          </div>
+          <div>
+            <div class="inline-compact" style="margin-top:6px; display:flex; gap:8px; align-items:center; justify-content:flex-end;">
+              <label style="margin:0;">
+                <span class="iwrap">New Lease Terms (Months)
+                  <span class="help">i</span>
+                  <span class="itip">Select which terms to quote for new leases. Defaults 2–14; up to 24 supported.</span>
+                </span>
+              </label>
+              <div class="dropdown" style="position:relative;">
+                <button id="nlDropdownBtn" type="button" class="btn sm" style="padding:6px 10px;">2–14</button>
+                <div id="nlDropdownPanel" class="panel" style="display:none; position:absolute; right:0; top:110%; background:#0b1220; border:1px solid #334155; border-radius:8px; padding:8px; box-shadow:0 8px 24px rgba(0,0,0,.35); z-index:50; width:220px; max-height:220px; overflow:auto;">
+                  <div id="nlTermList" style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px;"></div>
+                  <div style="display:flex; justify-content:space-between; margin-top:8px;">
+                    <button id="nlAll" class="btn xs" type="button">All</button>
+                    <button id="nlNone" class="btn xs" type="button">None</button>
+                    <button id="nlDefault" class="btn xs" type="button">2–14</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+      </div>
+      </div>
+        <div class="row-3" style="margin-top:8px">
+          <div class="hidden-soft">
+            <label>
+              <span class="iwrap">Conversion Sensitivity
+                <span class="help">i</span>
+                <span class="itip">How strongly we react to applications vs leads when inside the band.</span>
+              </span>
+            </label>
+            <select id="convSensitivity">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div>
+            <label>
+              <span class="iwrap">Pricing Adjustment Style
+                <span class="help">i</span>
+                <span class="itip">Controls how quickly prices adjust each run: Conservative, Standard, or Aggressive.</span>
+              </span>
+            </label>
+            <select id="priceResponse">
+              <option value="gentle">Conservative</option>
+              <option value="standard" selected>Standard</option>
+              <option value="fast">Aggressive</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floorplan Settings (manual editor) -->
+      <div class="card" id="fpSettingsCard">
+        <div class="actions" style="justify-content:space-between; align-items:center;">
+          <h2 data-tab-scope="settings" style="margin:0">Floorplan Settings</h2>
+          <div id="lockModeSwitch" class="actions" style="gap:6px">
+            <button id="btnModeDraft" class="btn xs" type="button">Draft</button>
+            <button id="btnModePublished" class="btn xs" type="button">Published 🔒</button>
+            <span id="lockModeChip" class="badge" aria-live="polite"></span>
+          </div>
+        </div>
+        <div class="note">Buffer stops decreases on this floorplan if a price drop would cross the buffer line. It never pushes other floorplans down.</div>
+        <div class="actions" style="justify-content:space-between; align-items:center; margin:8px 0;">
+          <div>
+            <a id="prefillFromRR" href="#" style="display:none; font-size:12px">Prefill from rent roll</a>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <a id="fpClearLocal" href="#" style="font-size:12px">Clear local</a>
+            <a id="fpResetDefaults" href="#" style="font-size:12px">Reset defaults</a>
+            <span id="fpSavedChip" class="badge" aria-live="polite" style="display:none"></span>
+            <button id="addFPBtn" class="btn xs" type="button">Add floorplan</button>
+          </div>
+        </div>
+        <div class="hscroll" style="overflow-x:auto">
+          <table class="basic" aria-label="Floorplan Settings table" style="min-width:780px">
+            <thead>
+              <tr>
+                <th style="width:24px"></th>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Units</th>
+                <th>Band Low %</th>
+                <th>Band High %</th>
+                <th>Min Gap to Next Tier $</th>
+            <th>Starting Rent $</th>
+            <th>Price Floor ($)</th>
+            <th>Price Ceiling ($)</th>
+            <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="fpTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Carry-Forward Mode Settings -->
+      <div class="card" id="carryForwardCard">
+        <h2 data-tab-scope="settings" style="margin:0">Carry-Forward Mode</h2>
+        <div class="note" style="margin:8px 0;">
+          Carry-forward mode saves each run's final floorplan baselines and uses them as starting points for the next run. 
+          This allows you to test how pricing evolves over time with different rent roll scenarios.
+        </div>
+        <div class="actions" style="gap:12px; margin-top:12px;">
+          <button id="resetCarryForwardBtn" class="btn sm" type="button" style="background:#dc2626; color:white;">
+            Reset Baselines to Seed Values
+          </button>
+          <span id="carryForwardStatus" class="badge" aria-live="polite"></span>
+        </div>
+        <div id="carryForwardInfo" class="note" style="margin-top:8px; display:none;">
+          <strong>Current Carry-Forward State:</strong>
+          <div id="carryForwardDetails"></div>
+        </div>
+      </div>
+
+      <!-- Floorplan Map (canonical CODE mapping) -->
+      <div class="card" id="fpMapCard">
+        <h2 data-tab-scope="settings">Floorplan Map</h2>
+        <div class="note">Map CSV labels to setup Codes. Pricing uses codes only.</div>
+        <div id="fpMapEmpty" class="note" style="display:none">No rent roll uploaded yet <span class="badge">unseen</span></div>
+        <div id="fpMapWrap" style="display:none">
+          <div class="row" style="align-items:start; gap:12px">
+            <div>
+              <h3 style="margin:0 0 6px">CSV Labels</h3>
+              <div id="fpLabelList" class="hscroll"></div>
+            </div>
+            <div>
+              <h3 style="margin:0 0 6px">Map to code</h3>
+              <div id="fpMapList" class="hscroll"></div>
+            </div>
+          </div>
+          <div class="actions" style="justify-content:flex-end; gap:10px; margin-top:8px">
+            <button id="fpMapSave" class="btn xs" type="button">Save map</button>
+            <button id="fpMapClear" class="btn xs" type="button">Clear map</button>
+          </div>
+        </div>
+
+        <div id="cardFPMapAlt">
+          <div class="note" id="fpMapEmptyAlt" style="display:none">No rent roll labels found yet.</div>
+          <table class="basic" style="width:100%">
+            <thead><tr><th style="width:55%">CSV Label</th><th style="width:35%">Map to Code</th><th>Preview</th></tr></thead>
+            <tbody id="fpMapTableBody"></tbody>
+          </table>
+          <div class="actions" style="justify-content:flex-end; gap:10px; margin-top:8px">
+            <button class="btn xs" id="fpMapClearBtn" type="button">Clear map</button>
+            <button class="btn primary xs" id="fpMapSaveBtn" type="button">Save map</button>
+            <span id="fpMapSavedChip" class="badge" aria-live="polite" style="margin-left:8px"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Seasonality -->
+      <div class="card">
+        <h2 data-tab-scope="settings">Seasonality</h2>
+        <div class="row">
+          <div>
+            <label>
+              <span class="iwrap">Seasonality Preset
+                <span class="help">i</span>
+                <span class="itip">Distribute expirations across the year. Choose Normal/Minimal/Aggressive, or use Custom to input your own monthly % targets.</span>
+              </span>
+            </label>
+            <select id="seasonalityCurve">
+              <option value="minimal">Minimal</option>
+              <option value="normal" selected>Normal</option>
+              <option value="aggressive">Aggressive</option>
+              <option value="custom">Custom</option>
+            </select>
+            <div id="seasonalityGrid" style="margin-top:10px;">
+              <label><strong>Monthly Expiration Targets (%)</strong></label>
+              <div class="months-grid" style="display:grid;grid-template-columns:repeat(13,1fr);gap:8px;margin-top:6px;align-items:end;">
+                <div><small>Jan</small><input class="month-input" data-idx="0" type="number" min="0" max="100" step="0.1" value="0"></div>
+                <div><small>Feb</small><input class="month-input" data-idx="1" type="number" min="0" max="100" step="0.1" value="0"></div>
+                <div><small>Mar</small><input class="month-input" data-idx="2" type="number" min="0" max="100" step="0.1" value="0"></div>
+                <div><small>Apr</small><input class="month-input" data-idx="3" type="number" min="0" max="100" step="0.1" value="0"></div>
+                <div><small>May</small><input class="month-input" data-idx="4" type="number" min="0" max="100" step="0.1" value="0"></div>
+                <div><small>Jun</small><input class="month-input" data-idx="5" type="number" min="0" max="100" step="0.1" value="0"></div>
+                <div><small>Jul</small><input class="month-input" data-idx="6" type="number" min="0" max="100" step="0.1" value="0"></div>
+                <div><small>Aug</small><input class="month-input" data-idx="7" type="number" min="0" max="100" step="0.1" value="0"></div>
+                <div><small>Sep</small><input class="month-input" data-idx="8" type="number" min="0" max="100" step="0.1" value="0"></div>
+                <div><small>Oct</small><input class="month-input" data-idx="9" type="number" min="0" max="100" step="0.1" value="0"></div>
+                <div><small>Nov</small><input class="month-input" data-idx="10" type="number" min="0" max="100" step="0.1" value="0"></div>
+                <div><small>Dec</small><input class="month-input" data-idx="11" type="number" min="0" max="100" step="0.1" value="0"></div>
+                <div style="text-align:right;">
+                  <small>Total</small>
+                  <div id="seasonalityTotal" class="ok" style="padding:6px 8px;border-radius:6px;border:1px solid #334155;">0%</div>
+                </div>
+              </div>
+              <p class="note">Tip: Values should equal 100%. Presets show read only values; choose Custom to edit.</p>
+            </div>
+
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px"></div>
+      </div>
+
+      <!-- Renewals -->
+      <div class="card">
+        <h2 data-tab-scope="settings">Renewals</h2>
+        <div class="row">
+          <div>
+            <label>
+              <span class="iwrap">Allow Renewal Decrease
+                <span class="help">i</span>
+                <span class="itip">If current rent is above today's new lease, allow decrease.</span>
+              </span>
+            </label>
+            <label class="switch">
+              <input id="allowDecAbove" type="checkbox">
+              <span class="toggle"><span class="knob"></span></span>
+              <span>On</span>
+            </label>
+          </div>
+          <div>
+            <label>
+              <span class="iwrap">Apply Guardrails to All Terms
+                <span class="help">i</span>
+                <span class="itip">Apply the same min/max % change caps across all renewal terms.</span>
+              </span>
+            </label>
+            <label class="switch">
+              <input id="capAllTerms" type="checkbox">
+              <span class="toggle"><span class="knob"></span></span>
+              <span>On</span>
+            </label>
+          </div>
+        </div>
+        <div class="row-3" style="margin-top:8px">
+          <div>
+            <label>
+              <span class="iwrap">Percent-to-New (%) (when below)
+                <span class="help">i</span>
+                <span class="itip">Enter how far renewals move toward the current new lease price when below (e.g., 50 = halfway).</span>
+              </span>
+            </label>
+            <input id="pctToNew" type="number" step="1" min="0" max="100" value="50" placeholder="e.g., 50">
+          </div>
+        </div>
+        <div class="row-3" style="margin-top:8px">
+          <div>
+            <label>
+              <span class="iwrap">Min % (below new)
+                <span class="help">i</span>
+                <span class="itip">Minimum allowed change when below new lease.</span>
+              </span>
+            </label>
+            <input id="renMin" type="number" step="1" min="-100" max="100" value="0" placeholder="e.g., 0">
+          </div>
+          <div>
+            <label>
+              <span class="iwrap">Max % (below new)
+                <span class="help">i</span>
+                <span class="itip">Maximum allowed increase when below new lease.</span>
+              </span>
+            </label>
+            <input id="renMax" type="number" step="1" min="-100" max="100" value="10" placeholder="e.g., 8">
+          </div>
+        </div>
+        <div class="row-3" style="margin-top:8px">
+          <div>
+            <label>
+              <span class="iwrap">Min % (above new)
+                <span class="help">i</span>
+                <span class="itip">Minimum allowed change when already above new lease.</span>
+              </span>
+            </label>
+            <input id="renAboveMin" type="number" step="1" min="-100" max="100" value="0" placeholder="e.g., 0">
+          </div>
+          <div>
+            <label>
+              <span class="iwrap">Max % (above new)
+                <span class="help">i</span>
+                <span class="itip">Maximum allowed change when already above new lease.</span>
+              </span>
+            </label>
+            <input id="renAboveMax" type="number" step="1" min="-100" max="100" value="0" placeholder="e.g., 5">
+          </div>
+          <div>
+            <label>
+              <span class="iwrap">Renewal Terms (Months)
+                <span class="help">i</span>
+                <span class="itip">Choose renewal terms to offer; defaults 2–14, up to 24 supported.</span>
+              </span>
+            </label>
+            <div class="inline-compact" style="margin-top:6px; display:flex; gap:8px; align-items:center; justify-content:flex-start;">
+              <div class="dropdown" style="position:relative;">
+                <button id="renDropdownBtn" type="button" class="btn sm" style="padding:6px 10px;">2–14</button>
+                <div id="renDropdownPanel" class="panel" style="display:none; position:absolute; left:0; top:110%; background:#0b1220; border:1px solid #334155; border-radius:8px; padding:8px; box-shadow:0 8px 24px rgba(0,0,0,.35); z-index:50; width:220px; max-height:220px; overflow:auto;">
+                  <div id="renTermList" style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px;"></div>
+                  <div style="display:flex; justify-content:space-between; margin-top:8px;">
+                    <button id="renAll" class="btn xs" type="button">All</button>
+                    <button id="renNone" class="btn xs" type="button">None</button>
+                    <button id="renDefault" class="btn xs" type="button">2–14</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="renTermBox" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Safety & Governance -->
+      <div class="card">
+        <h2 data-tab-scope="settings">Safety & Governance</h2>
+        <div class="row">
+          <div>
+            <label>
+              <span class="iwrap">Change Frequency Limit
+                <span class="help">i</span>
+                <span class="itip">Choose how often pricing can change: "Daily" allows one publish per day; "Off" removes the limit.</span>
+              </span>
+            </label>
+            <select id="changeCadence">
+              <option value="daily" selected>Daily</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="display:none">
+        <button id="run" class="btn primary">Run Pricing</button> <button id="exportXLSX" class="btn" disabled>Export XLSX</button>
+        <div class="note">Uploads stay local. Results include an expirations chart and suggested new & renewal pricing.</div>
+      </div>
+    </div>
+
+    <!-- Right column: Seasonality and Results -->
+    <div class="panel">
+      
+      <div class="card" id="boxScoreCard">
+        <div class="actions sticky-summary" style="justify-content:space-between">
+          <h2 style="margin:0" data-tab-scope="charts">Box Score</h2>
+          <div id="chartsSourceNote" class="note" style="margin-top:6px"></div>
+          <div class="note">Floorplan rows • Assumes all notices move out</div>
+        </div>
+        <div id="boxScoreSummary" style="margin:6px 0 0; display:none;"></div>
+        <div id="boxScoreWrap" style="overflow:auto; margin-top:6px;">
+          <table class="basic" id="boxScoreTable">
+            <thead>
+              <tr>
+                <th style="white-space:nowrap">Group</th>
+                <th># Units</th>
+                <th># Vacant</th>
+                <th># Notices</th>
+                <th># Preleased</th>
+                <th># Occupied</th>
+                <th>Occupied %</th>
+                <th>Projected %</th>
+              </tr>
+            </thead>
+            <tbody id="boxScoreBody">
+              <tr><td colspan="8" class="note">Run New or Renew to populate.</td></tr>
+            </tbody>
+            <tfoot id="boxScoreFoot"><tr><td colspan="8" class="note">Totals will appear after you run.</td></tr></tfoot>
+          </table>
+        </div>
+      </div>
+<div class="card">
+        <h2 data-tab-scope="charts">Seasonality (Next 12 Months)</h2>
+        <div style="height:260px;max-height:260px">
+          <canvas id="seasonChart" style="width:100%;height:100%"></canvas>
+        </div>
+        <div class="note">Shows actual expirations (blue bars) vs allowed capacity (line). Overages trigger higher-seasonality pressure.</div>
+      </div>
+      
+      <div class="card">
+        <h2 data-tab-scope="charts">Renewal Summary (Next 5 Months)</h2>
+        <div id="renewalSummaryWrap" style="overflow:auto; margin-top:6px;">
+          <table class="basic" id="renewalSummaryTable">
+            <thead>
+              <tr>
+                <th>Month</th>
+                <th>Total Expiring</th>
+                <th>Given Notice</th>
+                <th>Renewed</th>
+                <th>Undecided</th>
+                <th>Conversion %</th>
+              </tr>
+            </thead>
+            <tbody id="renewalSummaryBody">
+              <tr><td colspan="6" class="note">Run Renewals to populate Renewed. Upload & confirm mapping to see expirations.</td></tr>
+            </tbody>
+          </table>
+          <div id="mtmSummary" class="note" style="margin-top:6px"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-bottom:8px" data-tab-scope="history">Floorplan Price Movement (History)</h2>
+        <div class="row" style="align-items:end; margin-bottom:8px;">
+          <div>
+            <label><span class="iwrap">Select Floorplan
+              <span class="help">i</span>
+              <span class="itip">Choose a floorplan to view its adjusted base price over recent runs.</span>
+            </span></label>
+            <select id="fpHistorySelect"></select>
+          </div>
+          <div>
+            <label><span class="iwrap">Points
+              <span class="help">i</span>
+              <span class="itip">How many recent runs to plot (max 100).</span>
+            </span></label>
+            <input id="fpHistoryLimit" type="number" min="5" max="100" step="5" value="30">
+          </div>
+        </div>
+        <div style="height:220px;max-height:220px">
+          <canvas id="fpHistoryChart" style="width:100%;height:100%"></canvas>
+        </div>
+        <div class="note">Plots the adjusted base price captured on each <strong>New</strong> run. Does not include term premiums or seasonality.</div>
+      </div>
+
+
+      <div class="card">
+        <div class="actions" style="justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <h2 style="margin:0" data-tab-scope="newPricing">New Lease Pricing</h2>
+            <div id="npSubtabBar" role="tablist" aria-label="New Pricing view" class="actions" style="gap:6px; margin-left:8px;">
+              <button class="btn sm active" role="tab" data-subtab="fp" aria-selected="true" tabindex="0">Floorplan Pricing</button>
+              <button class="btn sm" role="tab" data-subtab="unit" aria-selected="false" tabindex="-1">Unit Pricing</button>
+            </div>
+          </div>
+          <div class="actions">
+            <button id="runNew" class="btn primary">Run New</button>
+            <button id="exportNew" class="btn" disabled>Export New</button>
+            <label id="npShowUnitsWrap" class="inline-flex items-center hidden-soft" style="gap:8px; margin-left:8px;">
+              <input type="checkbox" id="npShowUnits">
+              <span>Show available units</span>
+            </label>
+          </div>
+        </div>
+        <div id="npPaneFP">
+          <div id="nlBadge" class="note" style="margin:6px 0 4px; display:none;"></div>
+          <div id="nlTables"></div>
+        </div>
+        <div id="npPaneUnit" class="tab-hidden">
+          <div id="unitPricingSection" class="stack" style="margin-top:16px;"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="actions sticky-summary" style="justify-content:space-between">
+          <h2 style="margin:0" data-tab-scope="renewals">Renewal Offers</h2>
+          <div class="actions">
+            <button id="runRenew" class="btn primary">Run Renewals</button>
+            <button id="exportRenew" class="btn" disabled>Export Renew</button>
+          </div>
+        </div>
+        <div id="renBadge" class="note" style="margin:6px 0 4px; display:none;"></div>
+        <div id="renTables"></div>
+      </div>
+
+      <div class="card" id="legendCard">
+        <h2 data-tab-scope="newPricing renewals charts settings">Flags & Legend</h2>
+        <ul id="flagList"></ul>
+        <div class="note">
+          🚩 Over max allowed expirations (seasonality) • 🏷️ Floor applied • ⏳ Vacant too long (30/60/90d) •
+          📉 Renewal capped by guardrails • 🕰️ Tenure ≥30m • 💚 Above new lease by >10%
+        </div>
+      </div>
+
+      <div class="card" id="historyCard" style="display:block">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h2 style="margin:0">History (Local)</h2>
+          <button id="clearHistoryBtn" class="btn xs" type="button">Clear history</button>
+        </div>
+        <div id="historyList" class="note" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="./../src/js/pricing-helpers.js"></script>
+<script src="./../src/js/dev-guards.js"></script>
+<script src="./../src/js/pricing-unit.js"></script>
+<script src="./../src/js/pricing-fp.js"></script>
+<script src="./../src/js/app-boot.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+(()=>{
+  const $ = id => document.getElementById(id);
+  const num = (v,d=0)=>{const n=Number(v);return isNaN(n)?d:n};
+  const clamp=(x,lo,hi)=>Math.min(Math.max(x,lo),hi);
+  const fmt=(v)=> (v==null||isNaN(v)?"":"$"+Math.round(v).toLocaleString());
+  const fmtDate = (s)=>{const d=new Date(s); return isNaN(d)? "—" : d.toLocaleDateString(); };
+  const monthKey=(dt)=>{const d=new Date(dt);if(isNaN(d))return null;return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");};
+  let allowedPctByMonth = [0.04,0.04,0.07,0.09,0.11,0.12,0.12,0.11,0.09,0.07,0.06,0.08];
+
+  
+  // --- Export capture storage (split by panel) ---
+  let __newPricingRows = [];             // [["Floorplan","Term (mo)","Price ($)"], ...] for New Pricing
+  let __seasonalityNewRows = [];         // [["Month","Actual Expirations","Allowed Max"], ...] for New run
+
+  let __renewalsRows = [];               // [["Unit","Floorplan","Lease End","Term (mo)","Offer ($)",...], ...] for Renewals
+  let __seasonalityRenewRows = [];       // [["Month","Actual Expirations","Allowed Max"], ...] for Renew run
+  // expose buffers to window for cross-module access
+  window.__newPricingRows = __newPricingRows;
+  window.__seasonalityNewRows = __seasonalityNewRows;
+  window.__renewalsRows = __renewalsRows;
+  window.__seasonalityRenewRows = __seasonalityRenewRows;
+
+  function resetNewBuffers(){
+    __newPricingRows = [["Floorplan","Starting Rent ($)","Term (mo)","Price ($)"]];
+    __seasonalityNewRows = [["Month","Actual Expirations","Allowed Max"]];
+    window.__newPricingRows = __newPricingRows;
+    window.__seasonalityNewRows = __seasonalityNewRows;
+  }
+  function resetRenewBuffers(){
+  __renewalsRows = [[
+    "Unit","Floorplan","Lease End","Term (mo)",
+    "Offer ($)","Current ($)","Starting Rent ($)","Baseline New ($)",
+    "Pct-to-New","Guardrail Max",
+    "BasePct","TermPremiumPct","FinalPctApplied","GuardrailsOn",
+    "ShortTermPct","OverCapPct","SeasonalityPct"
+  ]];
+    __seasonalityRenewRows = [["Month","Actual Expirations","Allowed Max"]];
+    window.__renewalsRows = __renewalsRows;
+    window.__seasonalityRenewRows = __seasonalityRenewRows;
+  }
+
+  // Per-panel export buttons
+  function enableExportNew(on){ const b=$("exportNew"); if(b) b.disabled=!on; }
+  function enableExportRenew(on){ const b=$("exportRenew"); if(b) b.disabled=!on; }
+
+  function exportNew(){
+    if (__newPricingRows.length <= 1 || __seasonalityNewRows.length <= 1){
+      alert("Run New first."); return;
+    }
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.aoa_to_sheet(__newPricingRows);
+    const ws2 = XLSX.utils.aoa_to_sheet(__seasonalityNewRows);
+    XLSX.utils.book_append_sheet(wb, ws1, "New Pricing");
+    XLSX.utils.book_append_sheet(wb, ws2, "Seasonality");
+    const fname = "export_new_" + new Date().toISOString().slice(0,19).replace(/[:T]/g,"-") + ".xlsx";
+    XLSX.writeFile(wb, fname);
+  }
+
+  
+  function setBadge(elId, kind, rows){
+    const el = $(elId);
+    if(!el) return;
+    const ts = new Date();
+    const stamp = ts.toLocaleString();
+    const label = kind === "new" ? "New" : "Renew";
+    const count = Math.max(0, rows|0);
+    el.textContent = `Last run: ${label} • rows: ${count} • ${stamp}`;
+    el.style.display = "block";
+  }
+
+  function exportRenew(){
+    if (__renewalsRows.length <= 1 || __seasonalityRenewRows.length <= 1){
+      alert("Run Renewals first."); return;
+    }
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.aoa_to_sheet(__renewalsRows);
+    const ws2 = XLSX.utils.aoa_to_sheet(__seasonalityRenewRows);
+    XLSX.utils.book_append_sheet(wb, ws1, "Renewals");
+    XLSX.utils.book_append_sheet(wb, ws2, "Seasonality");
+    const fname = "export_renew_" + new Date().toISOString().slice(0,19).replace(/[:T]/g,"-") + ".xlsx";
+    XLSX.writeFile(wb, fname);
+  }
+  // (removed global click dispatcher to avoid double-trigger on export buttons)
+  function enableExportBtn(){}
+  function exportXLSX(){ alert("Use the panel-specific Export buttons."); }
+
+  function enableExportNew(on){ const b=$("exportNew"); if(b) b.disabled=!on; }
+  function enableExportRenew(on){ const b=$("exportRenew"); if(b) b.disabled=!on; }
+
+  // Build renewal terms 2..24 months
+  function buildRenTerms(){
+    const el=$("renTermBox"); el.innerHTML="";
+    for(let t=2;t<=24;t++){
+      const id="ren_t_"+t;
+      el.insertAdjacentHTML("beforeend",`
+        <label style="display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="${id}" value="${t}" ${t<=14?'checked':''}>
+          <span>${t}</span>
+        </label>
+      `);
+    }
+  }
+  buildRenTerms();
+  const readRenTerms = ()=> Array.from(document.querySelectorAll("#renTermBox input:checked")).map(x=>parseInt(x.value)).sort((a,b)=>a-b);
+
+  // CSV mapping
+  let rawRows=[], mapping=null, mappedRows=[];
+  const targetFields = [
+    {key:"UnitID", req:true,  hints:["unitid","unit","apt"]},
+    {key:"Floorplan", req:true, hints:["floorplan","type","unittype","plan"]},
+    {key:"Bedrooms", req:false, hints:["bedrooms","beds","br","bd","bed"]},
+    {key:"Status", req:true, hints:["status","occupancy","occ"]},
+    {key:"CurrentRent", req:true, hints:["currentrent","rent","base rent"]},
+    {key:"LeaseEnd", req:false, hints:["leaseend","expiration","exp date","move out"]},
+    {key:"PreleaseStart", req:false, hints:["prelease","future lease","future start"]},
+    {key:"VacantDays", req:false, hints:["vacantdays","days vacant"]},
+    {key:"MoveInDate", req:false, hints:["movein","lease start"]},
+    {key:"AmenityAdj", req:false, hints:["amenity adj","premium","discount"]},
+  ];
+  const normalizeHeader=(s)=> String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+
+  $("file").addEventListener("change",(e)=>{
+    const f=e.target.files?.[0]; if(!f) return;
+    Papa.parse(f,{header:true,skipEmptyLines:true,complete:(r)=>{
+      rawRows=r.data;
+      const cols=Object.keys(rawRows[0]||{});
+      mapping={};
+      const lower = cols.map(c=>({orig:c, norm:normalizeHeader(c)}));
+      for(const tf of targetFields){
+        let best = lower.find(c=>c.norm===normalizeHeader(tf.key));
+        if(!best) best = lower.find(c=>tf.hints.some(h=>c.norm===normalizeHeader(h)));
+        mapping[tf.key] = best ? best.orig : "";
+      }
+      renderMappingTable(cols, mapping); $("automap").style.display="block"; validateMappingPreview();
+    },error:(err)=>alert("Parse error: "+err.message)});
+  });
+
+  function renderMappingTable(cols, mapping){
+    const opts = sel => ["",...cols].map(c=>`<option ${mapping[sel]===c?"selected":""}>${c}</option>`).join("");
+    const rows = targetFields.map(tf=>`
+      <tr><td>${tf.key}${tf.req?" *":""}</td>
+      <td><select class="sel mapSel" data-key="${tf.key}">${opts(tf.key)}</select></td></tr>`).join("");
+    $("mapTable").innerHTML = `<table class="basic"><thead><tr><th>Field</th><th>CSV Column</th></tr></thead><tbody>${rows}</tbody></table>`;
+    document.querySelectorAll(".mapSel").forEach(el=> el.addEventListener("change",()=>{mapping[el.dataset.key]=el.value; validateMappingPreview();}));
+  }
+  function validateMappingPreview(){
+    const reqMissing = targetFields.filter(tf=>tf.req && !mapping[tf.key]);
+    $("validationBox").textContent = reqMissing.length ? `Missing required: ${reqMissing.map(x=>x.key).join(", ")}` : "Looks good.";
+    return !reqMissing.length;
+  }
+
+  $("confirmMapping").onclick=()=>{
+    if(!validateMappingPreview()){ alert("Fix required fields first."); return; }
+    mappedRows = rawRows.map(r=>({
+      UnitID:       mapping.UnitID       ? r[mapping.UnitID]       : "",
+      Floorplan:    mapping.Floorplan    ? r[mapping.Floorplan]    : "",
+      Bedrooms:     mapping.Bedrooms     ? Number(r[mapping.Bedrooms]) : NaN,
+      Status:       (mapping.Status      ? String(r[mapping.Status]) : "").toLowerCase(),
+      CurrentRent:  mapping.CurrentRent  ? Number(r[mapping.CurrentRent]) : NaN,
+      LeaseEnd:     mapping.LeaseEnd     ? r[mapping.LeaseEnd]     : "",
+      PreleaseStart:mapping.PreleaseStart? r[mapping.PreleaseStart]: "",
+      VacantDays:   mapping.VacantDays   ? Number(r[mapping.VacantDays]) : 0,
+      MoveInDate:   mapping.MoveInDate   ? r[mapping.MoveInDate]   : "",
+      AmenityAdj:   mapping.AmenityAdj   ? Number(r[mapping.AmenityAdj]) : 0
+    }));
+    alert("Mapping confirmed. Use Run New or Run Renewals to generate results."); window.mappedRows = mappedRows;
+    try{ if (typeof window.setHasUpload==='function') window.setHasUpload(); }catch(e){}
+    try{
+      const rows=(window.propertySetup&&window.propertySetup.floorplans)||[];
+      if (!rows.length) prefillFromRentRoll(); else mergeFromRentRoll();
+      if (typeof window.renderFPMapCard==='function') window.renderFPMapCard();
+      if (typeof window.autoMapFromSettings==='function') window.autoMapFromSettings();
+      if (typeof window.__applyLockState==='function') window.__applyLockState();
+    }catch(e){}
+
+    (function(){
+      function statusStr(s){ return String(s||"").toLowerCase(); }
+      function isVacant(s){ s=statusStr(s); return s.includes("vacant"); }
+      function isNotice(s){ s=statusStr(s); return s.includes("notice"); }
+      function isOccLike(s){ s=statusStr(s); return s.startsWith("occupied") || s.includes("notice"); }
+
+      function calcTrending(rows){
+        const N = rows.length;
+        let vac=0, notices=0, preRaw=0, occ=0;
+        for(const r of rows){
+          const s = statusStr(r.Status);
+          if (isVacant(s)) vac++;
+          if (isNotice(s)) notices++;
+          if (isOccLike(s)) occ++;
+          if (r.PreleaseStart) preRaw++;
+        }
+        const pre = Math.min(preRaw, vac + notices);
+        const todayOcc = N ? (occ / N) : 0;
+        const trending = N ? ((occ + pre - notices) / N) : 0;
+        return { todayOcc, trending: Math.max(0, Math.min(1, trending)), total: N, occ, notices, pre };
+      }
+
+      function calcStrugglingFPs(rows, targetOcc){
+        const by = new Map();
+        for(const r of rows){
+          const fp = r.Floorplan || "(unknown)";
+          if (!by.has(fp)) by.set(fp, []);
+          by.get(fp).push(r);
+        }
+        const out=[];
+        for (const [fp, list] of by.entries()){
+          const t = calcTrending(list).trending;
+          if (t < targetOcc) out.push({ code: fp, trendingOcc: t });
+        }
+        out.sort((a,b)=> (a.trendingOcc - b.trendingOcc));
+        return out;
+      }
+
+      function calcStale(rows){
+        const list = rows.filter(r => (Number(r.VacantDays)||0) >= 30 && isVacant(r.Status));
+        list.sort((a,b)=> (Number(b.VacantDays)||0) - (Number(a.VacantDays)||0));
+        return list.map(r => ({
+          unit: r.UnitID || r.Unit || "—",
+          fp: r.Floorplan || "",
+          days: Number(r.VacantDays)||0,
+          fpPrice: r.Price || r.NewPrice || null,
+          hasPre: !!r.PreleaseStart
+        }));
+      }
+
+      function calcExpiring(rows){
+        const in30 = new Date(); in30.setDate(in30.getDate()+30);
+        let exp=0;
+        for(const r of rows){
+          if(!r.LeaseEnd) continue;
+          const d = new Date(r.LeaseEnd);
+          if(!isNaN(d) && d <= in30) exp++;
+        }
+        return { expiring30d: exp, undecided30d: exp };
+      }
+
+      function updateWidgetData(rows){
+        const cfg = (typeof readCfg==='function') ? readCfg() : { comfortTarget: 0.95 };
+        const t = calcTrending(rows);
+        const exp = calcExpiring(rows);
+        const stale = calcStale(rows);
+        const fps = calcStrugglingFPs(rows, cfg.comfortTarget || 0.95);
+
+        window.totalUnits = t.total;
+        window.occupiedNow = t.occ;
+        window.onNotice = t.notices;
+        window.preleased = t.pre;
+
+        window.todayOcc = t.todayOcc;
+        window.undecidedRenewals30d = exp.undecided30d;
+        window.expiring30d = exp.expiring30d;
+        window.approvals7d = window.approvals7d || 0;
+        window.strugglingFPs = fps;
+        window.staleUnits30d = stale;
+
+        if (typeof repaintStatus45 === 'function') repaintStatus45();
+      }
+
+      window.__updateStatusFromMappedRows = updateWidgetData;
+    })();
+
+    // Call it immediately after mapping confirmation
+    if (Array.isArray(window.mappedRows)) { window.__updateStatusFromMappedRows(window.mappedRows); }
+  };
+
+  // Seasonality chart + over-cap calc
+  let seasonChart, overByKey={};
+  function renderSeasonality(norm, rowsTarget){
+        const start=new Date(); start.setDate(1);
+    const keys=[], labels=[];
+    for(let i=0;i<12;i++){ const d=new Date(start); d.setMonth(d.getMonth()+i); keys.push(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")); labels.push(d.toLocaleString(undefined,{month:"short"})); }
+    const count=Object.fromEntries(keys.map(k=>[k,0]));
+    norm.filter(r=>r.LeaseEnd).forEach(r=>{ const k=monthKey(r.LeaseEnd); if(k && count[k]!=null) count[k]++; });
+    const actual = keys.map(k=>count[k]||0);
+    const allowed = keys.map((k,i)=>Math.round((norm.length)*allowedPctByMonth[i%12]));
+    overByKey={};
+    keys.forEach((k,i)=>{ const over=Math.max(0,(actual[i]||0)-(allowed[i]||0)); if(over>0) overByKey[k]=over; });
+    const ctx=$("seasonChart").getContext("2d");
+    if(seasonChart) seasonChart.destroy();
+    seasonChart = new Chart(ctx,{type:"bar",data:{labels, datasets:[{label:"Actual expirations",data:actual},{label:"Max allowed",type:"line",data:allowed}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}},scales:{x:{grid:{display:false}},y:{beginAtZero:true}}}});
+    if (rowsTarget && Array.isArray(rowsTarget)) { for(let i=0;i<keys.length;i++){ rowsTarget.push([labels[i], actual[i]||0, allowed[i]||0]); } }
+    const overMonths = keys.map((k,i)=> actual[i]>allowed[i]? labels[i]:null).filter(Boolean);
+    if(overMonths.length){ flag(`🚩 Over max allowed expirations in: ${overMonths.join(", ")}`); }
+  }
+  const seasonalityMultiplier=(curve,endKey)=>{
+    const curveAlpha = {minimal:0.01, normal:0.02, aggressive:0.03}[curve]||0.02;
+    const over = overByKey[endKey]||0;
+    return 1 + curveAlpha * over;
+  };
+
+  function flag(msg){ const li=document.createElement("li"); li.textContent=msg; $("flagList").appendChild(li); }
+  function groupBy(arr,fn){ const m=new Map(); for(const x of arr){ const k=fn(x); m.set(k,(m.get(k)||[]).concat([x])); } return m; }
+
+  // Pricing pieces
+  function readCfg(){
+    return {
+      comfortTarget: num($("comfortTarget").value,95)/100,
+      bandLow: Math.max(0.80, Math.min(1.00, (num($("comfortTarget").value,95)-2)/100)),
+      bandHigh: Math.max(0.80, Math.min(1.00, (num($("comfortTarget").value,95)+1)/100)),
+      convSensitivity: $("convSensitivity").value,
+      priceResponse: $("priceResponse").value,
+      fpSensitivity: 'medium',
+      seasonalityCurve: $("seasonalityCurve").value,
+      agedVacantPolicy: $("agedVacantPolicy").value,
+      showDiscount: $("showDiscount").checked,
+      floorBadge: $("floorBadge").checked,
+      // renewals
+      allowDecAbove: $("allowDecAbove").checked,
+      capAllTerms: $("capAllTerms").checked,
+      strengthToMarket: $("strengthToMarket").value,
+      pctToNew: num($("pctToNew").value,50)/100,
+      renMin: num($("renMin").value,0)/100,
+      renMax: num($("renMax").value,10)/100,
+      renAboveMin: num($("renAboveMin").value,0)/100,
+      renAboveMax: num($("renAboveMax").value,0)/100,
+      renewalAwareness: $("renewalAwareness").value,
+      renTerms: (window.readRenTermsCompact ? window.readRenTermsCompact() : readRenTerms()),
+      nlTerms: (window.readNLTerms ? window.readNLTerms() : [2,3,4,5,6,7,8,9,10,11,12,13,14]),
+      maxWeeklyDec: num($("maxWeeklyDec").value,2)/100,
+      // safety
+      changeCadence: $("changeCadence").value,
+      reviewLarge: $("reviewLarge").checked,
+      fs_windowDays: num(document.getElementById('fs_windowDays')?.value, 28),
+      fs_minLeads: num(document.getElementById('fs_minLeads')?.value, 50),
+      fs_thrWeak: num(document.getElementById('fs_thrWeak')?.value, 20),
+      fs_thrCautious: num(document.getElementById('fs_thrCautious')?.value, 30)
+    };
+  }
+
+  function writeCfg(c){
+    // Update only our new display settings inputs if present
+    try{
+      if (document.getElementById('fs_windowDays')) document.getElementById('fs_windowDays').value = String(c.fs_windowDays ?? 28);
+      if (document.getElementById('fs_minLeads')) document.getElementById('fs_minLeads').value = String(c.fs_minLeads ?? 50);
+      if (document.getElementById('fs_thrWeak')) document.getElementById('fs_thrWeak').value = String(c.fs_thrWeak ?? 20);
+      if (document.getElementById('fs_thrCautious')) document.getElementById('fs_thrCautious').value = String(c.fs_thrCautious ?? 30);
+    }catch(e){}
+    return c;
+  }
+
+  // Conversion map
+  const CONV = { low:{target:0.20,tol:0.03,step:0.005}, medium:{target:0.25,tol:0.02,step:0.010}, high:{target:0.30,tol:0.015,step:0.015} };
+  const PRICE_STEP = {gentle:0.0075, standard:0.015, fast:0.025};
+
+
+  function computeMoveSingleThreshold(cfg, fpTrend, commTrend, nFp){
+    return 0;
+  }
+
+  function computeDirSmooth(code, fpLabel, cfg, tState, setupByCode){
+    try{
+      const row = (setupByCode && setupByCode[code]) || {};
+      const low = Number(row.band_low_pct||0) || Math.round((cfg.bandLow||0.93)*100);
+      const high= Number(row.band_high_pct||0) || Math.round((cfg.bandHigh||0.96)*100);
+      const mid = (low + high) / 2;
+      const occ_fp = Number(tState && (tState.tFP[code] ?? tState.tFP[fpLabel])) || 0; // 0..1
+      const occ_site = Number(tState && tState.tComm) || 0; // 0..1
+      const target_site = Number(cfg && cfg.comfortTarget) || 0.95;
+
+      const dev_pp = (occ_fp*100) - mid; // percent-points
+      const sign = dev_pp < 0 ? -1 : (dev_pp > 0 ? +1 : 0);
+
+      const S = { maxMove: 0.05, k: 1.4 }; // Balanced
+      const pr = String(cfg && cfg.priceResponse || 'standard').toLowerCase();
+      if (pr === 'fast') S.maxMove = 0.08;       // Aggressive: ±8%
+      else if (pr === 'gentle') S.maxMove = 0.03; // Conservative: ±3%
+      else S.maxMove = 0.05;                     // Standard/Balanced: ±5%
+
+      // Normalize distance: 5pp => x=1
+      const x = Math.abs(dev_pp) / 5;
+      let mag = S.maxMove * Math.tanh(S.k * x); // 0..maxMove
+
+      // Community bias
+      const deltaSitePP = ((occ_site - target_site) * 100);
+      let biasMult = 1.0;
+      if (deltaSitePP > 1 && sign > 0){
+        biasMult = 1 + Math.min(0.15 * deltaSitePP, 0.30);
+      } else if (deltaSitePP < -1 && sign < 0){
+        biasMult = 1 + Math.min(0.15 * Math.abs(deltaSitePP), 0.30);
+      }
+      mag *= biasMult;
+
+      if (sign < 0){
+        const minDrop   = Number(cfg && cfg.commMinDropWhenAtOrBelowTargetPct) || 0.004; // 0.4%
+        const dampStart = Number(cfg && cfg.commDampenStartAboveTargetPP)   || 1.0;      // +1 pp
+        const blockAt   = Number(cfg && cfg.commBlockAboveTargetPP)         || 4.0;      // +4 pp
+        const slopePP   = Number(cfg && cfg.commDampenSlopePerPP)           || 0.15;     // per-pp
+        const dampFloor = Number(cfg && cfg.commDampenFloor)                || 0.25;     // ≥25%
+
+        if (occ_site <= target_site){
+          // Enforce minimum negative move when at/below target
+          mag = Math.max(mag, minDrop);
+        } else {
+          // Site above target: dampen or block decreases progressively
+          if (deltaSitePP >= blockAt){
+            mag = 0;
+          } else if (deltaSitePP >= dampStart){
+            let factor = 1 - slopePP * (deltaSitePP - dampStart);
+            // Clamp factor between dampFloor..1
+            factor = Math.max(dampFloor, Math.min(1, factor));
+            mag *= factor;
+          }
+        }
+      }
+
+      // Cap to sensitivity max and restore sign
+      mag = Math.min(mag, S.maxMove);
+      let dir = sign * mag;
+
+      // Center deadband with tiny assist if bias applies
+      const CENTER_DEADBAND_PP = 0.3;
+      if (Math.abs(dev_pp) < CENTER_DEADBAND_PP){
+        if (biasMult > 1.0){
+          const tiny = Math.min(0.0025 * (S.maxMove/0.05), 0.005);
+          const nudgeSign = sign || (deltaSitePP>0? +1 : -1);
+          dir = nudgeSign * tiny;
+        } else {
+          dir = 0;
+        }
+      }
+
+      const biasPct = Math.max(0, (biasMult - 1) * 100);
+      return { dir: Number.isFinite(dir)? dir: 0, mid, dev_pp, biasPct };
+    }catch(e){ return { dir:0, mid:NaN, dev_pp:NaN, biasPct:0 }; }
+  }
+function computeTrending(norm){
+  // Box Score-equivalent helpers
+  const status = (s)=> String(s||'').toLowerCase();
+  const isVac = (s)=> status(s).includes('vacant');
+  const isNotice = (s)=> status(s).includes('notice');
+  const isOccLike = (s)=> status(s).startsWith('occupied') || status(s).includes('notice');
+
+  // Community counts
+  const N = norm.length;
+  let vac = 0, notices = 0, preRaw = 0, occ = 0;
+  for(const r of norm){
+    const s = status(r.Status);
+    if (isVac(s)) vac++;
+    if (isNotice(s)) notices++;
+    if (isOccLike(s)) occ++;
+    if (r.PreleaseStart) preRaw++;
+  }
+  const pre = Math.min(preRaw, vac + notices); // cannot replace more than pending move-outs
+  const occPct = N ? (occ / N) : 0;
+  const projected = N ? (1 - ((vac + notices - pre) / N)) : 0;
+  const tComm = Math.max(0, Math.min(1, projected));
+
+  // Floorplan-level projected (same rules)
+  const byFP = (function groupBy(arr,fn){ const m=new Map(); for(const x of arr){ const k=fn(x); m.set(k,(m.get(k)||[]).concat([x])); } return m; })(norm, r => r.Floorplan || "(unknown)");
+  const tFP = {};
+  for (const [fp, list] of byFP.entries()){
+    const n = list.length;
+    let v = 0, no = 0, pr = 0, oc = 0;
+    for(const r of list){
+      const s = status(r.Status);
+      if (isVac(s)) v++;
+      if (isNotice(s)) no++;
+      if (isOccLike(s)) oc++;
+      if (r.PreleaseStart) pr++;
+    }
+    const pre2 = Math.min(pr, v + no);
+    const proj2 = n ? (1 - ((v + no - pre2) / n)) : 0;
+    tFP[fp] = Math.max(0, Math.min(1, proj2));
+  }
+
+  return { tComm, tFP, occPct }; // occPct included for possible UI chips
+}
+
+
+  function applyIFTHEN(cfg, tFP, tComm, fp){
+    const f=tFP[fp]; const c=tComm;
+    const low=cfg.bandLow, high=cfg.bandHigh;
+    const outsideStep = PRICE_STEP[cfg.priceResponse];
+    if (f>high && c<low) return 0;
+    if (f>high && c>=low && c<=high) return +outsideStep;
+    if (f>high && c>high) return -outsideStep;
+    if (f>=low && f<=high && c>high) return 0;
+    if (f>=low && f<=high && c>=low && c<=high) return 0;
+    if (f>=low && f<=high && c<low) return 0;
+    if (f<low && c<low) return -outsideStep;
+    if (f<low && c>=low && c<=high) return -outsideStep;
+    if (f<low && c>high) return 0;
+    return 0;
+  }
+
+  function vacancySpecialPct(v){
+    if (v>=90) return 0.15;
+    if (v>=60) return 0.10;
+    if (v>=30) return 0.05;
+    return 0;
+  }
+
+  function shortTermAdj(base, term){
+    if (term>=10) return base;
+    const start = 0.08, taper = 0.01;
+    const extra = Math.max(0, start - (term-2)*taper);
+    return base*(1+extra);
+  }
+
+  function renewalBase(current,newLease,cfg,isAbove){
+    // Helper: order-aware clamp
+    const ordClamp = (x, a, b) => {
+      const lo = Math.min(a, b);
+      const hi = Math.max(a, b);
+      return Math.min(Math.max(x, lo), hi);
+    };
+
+    if(!isAbove){
+      // BELOW NEW: move toward new by pctToNew, then clamp by [renMin, renMax] (order-aware)
+      const target = current + (newLease - current) * (cfg.pctToNew || 0);
+      let d = (target / Math.max(1, current)) - 1; // expected >= 0
+      const lo = (typeof cfg.renMin === 'number') ? cfg.renMin : 0;
+      const hi = (typeof cfg.renMax === 'number') ? cfg.renMax : 0;
+      d = ordClamp(d, lo, hi);
+      return current * (1 + d);
+    } else {
+      // ABOVE NEW: move toward new by pctToNew (typically negative), respect allowDecAbove,
+      // then clamp by [renAboveMin, renAboveMax] (order-aware; values may be negative)
+      const toward = current - (current - newLease) * (cfg.pctToNew || 0);
+      let d = (toward / Math.max(1, current)) - 1; // typically < 0
+      if (!cfg.allowDecAbove) d = Math.max(0, d); // disallow decreases if configured
+
+      const loRaw = (typeof cfg.renAboveMin === 'number') ? cfg.renAboveMin : -1;
+      const hiRaw = (typeof cfg.renAboveMax === 'number') ? cfg.renAboveMax : 0; // negative max => allow decreases
+      d = ordClamp(d, loRaw, hiRaw);
+
+      return current * (1 + d);
+    }
+  }
+
+  function applyRenewalGuardrailMax(cfg, pctChange, isAbove, allowDecAbove){
+    // pctChange is (finalPrice/current) - 1 AFTER premiums
+    if (!isAbove){
+      // BELOW new lease path: cap upward % by renMax; do NOT enforce a min.
+      const cappedUp = Math.min(pctChange, cfg.renMax||0);
+      return cappedUp;
+    } else {
+      // ABOVE new lease path:
+      // - If decreases are not allowed, clamp negatives to 0 first.
+      let p = allowDecAbove ? pctChange : Math.max(0, pctChange);
+      // Apply above-new "max %" as an absolute magnitude cap (symmetric)
+      const limit = Math.abs(cfg.renAboveMax||0);
+      if (p > 0) p = Math.min(p, limit);
+      if (p < 0) p = Math.max(p, -limit);
+      return p;
+    }
+  }
+
+  function explain(chips){
+    const cap=chips.slice(0,3);
+    return `<div>${cap.map(c=>`<span class="badge">${c}</span>`).join(" ")}</div>`;
+  }
+
+  // Debug helpers for base formula (added for Renewals debug)
+  if (typeof _fmtPct !== 'function'){
+    function _fmtPct(p){ return ((p*100).toFixed(1) + '%'); }
+  }
+  if (typeof _clampOrdered !== 'function'){
+    function _clampOrdered(x, a, b){ const lo = Math.min(a, b), hi = Math.max(a, b); return Math.min(Math.max(x, lo), hi); }
+  }
+  if (typeof buildRenewalBaseFormulaDebug !== 'function'){
+    function buildRenewalBaseFormulaDebug(current, newLease, cfg){
+      const isAbove = current > newLease;
+      const pctToNew = cfg.pctToNew || 0;
+      if (!isAbove){
+        const target = current + (newLease - current) * pctToNew;
+        const rawPct = (target / Math.max(1, current)) - 1;
+        const lo = (typeof cfg.renMin === 'number') ? cfg.renMin : 0;
+        const hi = (typeof cfg.renMax === 'number') ? cfg.renMax : 0;
+        const basePct = _clampOrdered(rawPct, lo, hi);
+        const base = Math.round(current * (1 + basePct));
+        return [
+          'Base (below-new): ',
+          `target = ${fmt(target)} = ${fmt(current)} + ${_fmtPct(pctToNew)}×(${fmt(newLease)} − ${fmt(current)})`,
+          `; raw ${_fmtPct(rawPct)} → clamp[${_fmtPct(lo)}, ${_fmtPct(hi)}] = ${_fmtPct(basePct)}`,
+          ` → base ${fmt(base)}`
+        ].join('');
+      } else {
+        const toward = current - (current - newLease) * pctToNew;
+        let rawPct = (toward / Math.max(1, current)) - 1; // typically negative
+        const allowDec = !!cfg.allowDecAbove;
+        const loRaw = (typeof cfg.renAboveMin === 'number') ? cfg.renAboveMin : -1;
+        const hiRaw = (typeof cfg.renAboveMax === 'number') ? cfg.renAboveMax : 0;
+        const afterAllow = allowDec ? rawPct : Math.max(0, rawPct);
+        const basePct = _clampOrdered(afterAllow, loRaw, hiRaw);
+        const base = Math.round(current * (1 + basePct));
+        return [
+          'Base (above-new): ',
+          `toward = ${fmt(toward)} = ${fmt(current)} − ${_fmtPct(pctToNew)}×(${fmt(current)} − ${fmt(newLease)})`,
+          `; raw ${_fmtPct(rawPct)}`,
+          allowDec ? '' : ' → no-decrease max(0, raw)',
+          ` → clamp[${_fmtPct(loRaw)}, ${_fmtPct(hiRaw)}] = ${_fmtPct(basePct)}`,
+          ` → base ${fmt(base)}`
+        ].join('');
+      }
+    }
+  }
+
+  // Debug helpers for base formula (safe additions)
+  if (typeof _fmtPct !== 'function'){
+    function _fmtPct(p){ return ((p*100).toFixed(1) + '%'); }
+  }
+  if (typeof _clampOrdered !== 'function'){
+    function _clampOrdered(x, a, b){ const lo = Math.min(a, b), hi = Math.max(a, b); return Math.min(Math.max(x, lo), hi); }
+  }
+  if (typeof buildRenewalBaseFormulaDebug !== 'function'){
+    function buildRenewalBaseFormulaDebug(current, newLease, cfg){
+      const isAbove = current > newLease;
+      const pctToNew = cfg.pctToNew || 0;
+      if (!isAbove){
+        const target = current + (newLease - current) * pctToNew;
+        const rawPct = (target / Math.max(1, current)) - 1;
+        const lo = (typeof cfg.renMin === 'number') ? cfg.renMin : 0;
+        const hi = (typeof cfg.renMax === 'number') ? cfg.renMax : 0;
+        const basePct = _clampOrdered(rawPct, lo, hi);
+        const base = Math.round(current * (1 + basePct));
+        return [
+          'Base (below-new): ',
+          `target = ${fmt(target)} = ${fmt(current)} + ${_fmtPct(pctToNew)}×(${fmt(newLease)} − ${fmt(current)})`,
+          `; raw ${_fmtPct(rawPct)} → clamp[${_fmtPct(lo)}, ${_fmtPct(hi)}] = ${_fmtPct(basePct)}`,
+          ` → base ${fmt(base)}`
+        ].join('');
+      } else {
+        const toward = current - (current - newLease) * pctToNew;
+        let rawPct = (toward / Math.max(1, current)) - 1; // typically negative
+        const allowDec = !!cfg.allowDecAbove;
+        const loRaw = (typeof cfg.renAboveMin === 'number') ? cfg.renAboveMin : -1;
+        const hiRaw = (typeof cfg.renAboveMax === 'number') ? cfg.renAboveMax : 0;
+        const afterAllow = allowDec ? rawPct : Math.max(0, rawPct);
+        const basePct = _clampOrdered(afterAllow, loRaw, hiRaw);
+        const base = Math.round(current * (1 + basePct));
+        return [
+          'Base (above-new): ',
+          `toward = ${fmt(toward)} = ${fmt(current)} − ${_fmtPct(pctToNew)}×(${fmt(current)} − ${fmt(newLease)})`,
+          `; raw ${_fmtPct(rawPct)}`,
+          allowDec ? '' : ' → no-decrease max(0, raw)',
+          ` → clamp[${_fmtPct(loRaw)}, ${_fmtPct(hiRaw)}] = ${_fmtPct(basePct)}`,
+          ` → base ${fmt(base)}`
+        ].join('');
+      }
+    }
+  }
+
+  
+function renderRenewals(cfg,norm,tState){
+  const wrap = $("renTables"); 
+  wrap.innerHTML = "";
+
+  const byFP = groupBy(norm, r => r.Floorplan || "(unknown)");
+  const terms = (cfg && Array.isArray(cfg.renTerms) && cfg.renTerms.length)
+    ? cfg.renTerms
+    : (window.readRenTermsCompact ? window.readRenTermsCompact() : readRenTerms());
+  const refTerm = Math.max.apply(null, terms);
+
+  // occupied units with a lease-end date, oldest first
+  const renewals = (norm||[])
+    .filter(x => String(x.Status||"").toLowerCase().startsWith("occupied") && x.LeaseEnd)
+    .sort((a,b)=> new Date(a.LeaseEnd) - new Date(b.LeaseEnd));
+
+  // If no eligible renewals, show a friendly note instead of a blank panel
+  if (!renewals.length){
+    wrap.innerHTML = '<div class="note">No renewal candidates found for this dataset.</div>';
+    return;
+  }
+
+    for (const r of renewals){
+    const fp = r.Floorplan || "(unknown)";
+    const fpList = byFP.get(fp) || [];
+    const fpAvg = fpList.reduce((s,u)=> s + (u.CurrentRent||0), 0) / Math.max(1, fpList.length);
+    const fpN = fpList.length;
+
+    // trending + move direction
+    const fpTrend   = tState.tFP[fp];
+    const commTrend = tState.tComm;
+    const dir = computeMoveSingleThreshold(cfg, fpTrend, commTrend, fpN);
+
+    // === Baseline new anchored to Starting Rent (by code) ===
+    const sr = Number((startingRentForCode(fp)) || 0);
+    const anchor = (sr && sr > 0) ? sr : fpAvg;
+    const baselineNew = anchor * (1 + dir);
+    const curr = r.CurrentRent || 0;
+
+    let trs = "";
+    let _refRenewPrice = NaN;
+
+    for (const term of terms){
+      // Whether current is above today's baseline-new
+      const isAboveNew = curr > baselineNew;
+
+// --- RENEWALS: per-term computation (surgical patch) ---
+// 1) Build base using existing renewalBase
+const basePrice = renewalBase(curr, baselineNew, cfg, isAboveNew);
+let basePct = (basePrice / Math.max(1, curr)) - 1;
+
+// 2) Term premiums = short-term (2–9) + seasonality.
+const end = new Date(); end.setMonth(end.getMonth() + term);
+const key = end.getFullYear() + "-" + String(end.getMonth()+1).padStart(2, "0");
+
+// Start from basePrice to compute the multiplicative term effects just like New
+const baseAfterShort = shortTermAdj(basePrice, term); // if term>=10, it's unchanged
+const shortTermPctDec = (baseAfterShort / Math.max(1, basePrice)) - 1; // decimal
+
+const monthMult = seasonalityMultiplier(cfg.seasonalityCurve, key) || 1;
+const seasonalityPctDec = (monthMult - 1); // decimal
+const overCount = (overByKey && overByKey[key]) ? overByKey[key] : 0;
+
+// Apply term effects multiplicatively to basePrice to get the raw term price
+const rawTermPrice = baseAfterShort * monthMult;
+
+// 3) Convert to final % vs current and apply guardrails policy
+let pctFinal = (rawTermPrice / Math.max(1, curr)) - 1;
+if (cfg.capAllTerms === true) {
+  // Per-term MAX-only cap after premiums
+  pctFinal = applyRenewalGuardrailMax(cfg, pctFinal, isAboveNew, cfg.allowDecAbove);
+} else {
+  // No per-term cap. If above-new and decreases are not allowed, prevent negative final pct.
+  if (isAboveNew && !cfg.allowDecAbove) {
+    pctFinal = Math.max(0, pctFinal);
+  }
+}
+
+// Final offer (rounded)
+const offer = Math.round(curr * (1 + pctFinal));
+
+// --- Notes formatting (match New style). When guardrails OFF, omit "max-cap ..." ---
+const pctToStr = v => `${(v*100).toFixed(1)}%`;
+const parts = [];
+parts.push(`term premium ${pctToStr(shortTermPctDec)}`);
+if (overCount && seasonalityPctDec !== 0) {
+  parts.push(`& over cap (${overCount}) ${pctToStr(Math.max(0, seasonalityPctDec))}`);
+} else {
+  parts.push(`& seasonality ${pctToStr(seasonalityPctDec)}`);
+}
+const termSumDec = shortTermPctDec + seasonalityPctDec;
+const left = `${parts.join(' ')} = ${pctToStr(termSumDec)}`;
+let note = left + ` → applied ${pctToStr(pctFinal)}`;
+if (cfg.capAllTerms === true) {
+  const maxCap = isAboveNew ? Math.abs(cfg.renAboveMax || 0) : Math.abs(cfg.renMax || 0);
+  note = `${left} → max-cap ${pctToStr(maxCap)} → applied ${pctToStr(pctFinal)}`;
+}
+
+      trs += `<tr>
+                <td>${term} mo</td>
+                <td>${fmt(offer)}</td>
+                <td style="text-align:right;opacity:.9"><small>${note}</small></td>
+              </tr>`;
+
+      // Include Starting Rent and Baseline New in export
+      __renewalsRows.push([
+        r.UnitID, fp, fmtDate(r.LeaseEnd), term,
+        offer, Math.round(curr), Math.round(sr>0?sr:fpAvg), Math.round(baselineNew),
+        Math.round((cfg.pctToNew||0)*100)+'%',
+        (isAboveNew?cfg.renAboveMin:cfg.renMin), (isAboveNew?cfg.renAboveMax:cfg.renMax)
+      ]);
+    }
+
+    // Footer debug: Current vs baseline-new, plus knobs and applied on reference term
+  const appliedPct = (isFinite(_refRenewPrice) && curr>0) ? ((_refRenewPrice/curr - 1)*100) : NaN;
+  const appliedTxt = isFinite(appliedPct) ? ((appliedPct>=0?'+':'−')+Math.abs(appliedPct).toFixed(1)+'%') : '—';
+  const pctToNewTxt = Math.round((cfg.pctToNew||0)*100) + '%';
+  const maxOnly = Math.max(0, (cfg.renMax||0), (cfg.renAboveMax||0));
+  const maxTxt = maxOnly ? (Math.round(maxOnly*1000)/10).toFixed(1)+'%' : '—';
+  const baseLine = (typeof buildRenewalBaseFormulaDebug==='function') ? buildRenewalBaseFormulaDebug(curr, baselineNew, cfg) : '';
+
+    const footerDebug = `
+      <div class="note" style="margin-top:6px;opacity:.9">
+        Debug — Current ${fmt(curr)} • Starting Rent ${fmt(sr>0?sr:fpAvg)} • baseline-new ${fmt(baselineNew)}
+        • pct-to-new: ${pctToNewTxt} • max: ${maxTxt} → applied ${appliedTxt}
+        <br><span style="opacity:.85">${baseLine}</span>
+      </div>`;
+
+    wrap.insertAdjacentHTML("beforeend", `
+      <div style="border:1px solid #0b2035;border-radius:10px;padding:10px;margin:8px 0">
+        <div style="font-weight:600">Unit ${r.UnitID} — ${fp} — Lease End ${fmtDate(r.LeaseEnd)} — Current ${fmt(curr)}</div>
+        <table class="basic" style="margin-top:6px">
+          <thead><tr><th>Term</th><th>Offer</th><th style="text-align:right;">Notes</th></tr></thead>
+          <tbody>${trs}</tbody>
+        </table>
+        ${footerDebug}
+        ${explain([
+          (curr >= baselineNew) ? "Above baseline-new" : "Below baseline-new",
+          "Percent-to-new: " + Math.round((cfg.pctToNew||0)*100) + "%",
+          cfg.capAllTerms ? "Guardrails: max only" : "Guardrails off"
+        ])}
+      </div>`);
+  }
+}
+
+
+  // STEP 1: split run paths
+  function canRun(){
+    if(!mappedRows?.length){ alert("Upload & confirm mapping first."); return false; }
+    if(window.applySeasonalityFromUI && !window.applySeasonalityFromUI()) return false;
+    return true;
+  }
+  function computeState(){ if (typeof window._syncBandsFromTarget === 'function') window._syncBandsFromTarget(); const cfg = readCfg(); const tState = computeTrending(mappedRows); return {cfg,tState}; }
+
+  $("runNew").addEventListener("click",()=>{
+    if(!canRun()) return;
+    $("flagList").innerHTML="";
+    resetNewBuffers();
+    renderSeasonality(mappedRows, __seasonalityNewRows);
+    const {cfg,tState} = computeState();
+    const fpPts = collectNewFloorplanPoints(cfg, mappedRows, tState);
+    renderNewLease(cfg,mappedRows,tState);
+    // Also render Renewals so the tab is ready without manual refresh
+    try{
+      resetRenewBuffers();
+      renderSeasonality(mappedRows, __seasonalityRenewRows);
+      renderRenewals(cfg, mappedRows, tState);
+    }catch(e){}
+    setBadge("nlBadge","new", (__newPricingRows.length>0? (__newPricingRows.length-1):0));
+    addHistory("new", cfg, tState, (__newPricingRows.length>0? (__newPricingRows.length-1):0), fpPts);
+    enableExportNew(true);
+    if (Array.isArray(window.mappedRows) && typeof window.__updateStatusFromMappedRows==='function'){
+      window.__updateStatusFromMappedRows(window.mappedRows);
+    }
+  });
+
+  $("runRenew").addEventListener("click",()=>{
+    if(!canRun()) return;
+    $("flagList").innerHTML="";
+    resetRenewBuffers();
+    renderSeasonality(mappedRows, __seasonalityRenewRows);
+    const {cfg,tState} = computeState();
+    renderRenewals(cfg,mappedRows,tState);
+    setBadge("renBadge","renew", (__renewalsRows.length>0? (__renewalsRows.length-1):0));
+    addHistory("renew", cfg, tState, (__renewalsRows.length>0? (__renewalsRows.length-1):0));
+    enableExportRenew(true);
+    if (Array.isArray(window.mappedRows) && typeof window.__updateStatusFromMappedRows==='function'){
+      window.__updateStatusFromMappedRows(window.mappedRows);
+    }
+  });
+
+  $("exportNew").addEventListener("click", exportNew);
+  $("exportRenew").addEventListener("click", exportRenew);
+
+})();
+
+// --- Local History (scaffold) ---
+let __history = []; // keep last 100 runs
+
+function snapshotCfg(cfg){
+  try{
+    // shallow copy only of keys we care about
+    const keys = ["comfortTarget","bandLow","bandHigh","convSensitivity","priceResponse","fpSensitivity","seasonalityCurve",
+                  "allowDecAbove","capAllTerms","pctToNew","renMin","renMax","renAboveMin","renAboveMax",
+                  "renTerms","nlTerms","changeCadence"];
+    const out = {};
+    keys.forEach(k => out[k] = Array.isArray(cfg[k]) ? [...cfg[k]] : cfg[k]);
+    return out;
+  }catch(e){ return {}; }
+}
+
+function addHistory(kind, cfg, tState, rowCount, fpPoints){
+  const item = {
+    ts: new Date().toISOString(),
+    kind: kind,                    // "new" | "renew"
+    rows: rowCount|0,
+    cfg: snapshotCfg(cfg),
+    t: {
+      comm: (typeof tState?.tComm === "number" ? Math.round(tState.tComm*1000)/1000 : null),
+      fps: tState && tState.tFP ? Object.keys(tState.tFP).length : null
+    }
+  };
+  if(kind === 'new' && Array.isArray(fpPoints)) item.fpPoints = fpPoints;
+  __history.unshift(item);
+  if(__history.length > 100) __history = __history.slice(0,100);
+  // Placeholder: future UI rendering goes here.
+}
+
+window.getHistory = () => __history.slice(); // read-only copy
+window.clearHistory = () => { __history = []; };
+</script>
+
+<script>
+(function(){
+  const btn = document.getElementById('confirmMapping');
+  const automap = document.getElementById('automap');
+  if(btn && automap){
+    btn.addEventListener('click', function(){
+      automap.style.display = 'none';
+      try { document.getElementById('file')?.scrollIntoView({behavior:'smooth'}); } catch(e){}
+    });
+  }
+})();
+</script>
+
+<!-- Backfill hidden controls removed from UI to keep logic working -->
+<div id="ui-backfill" style="display:none">
+  <input type="checkbox" id="showDiscount">
+  <input type="checkbox" id="floorBadge" checked>
+  <select id="agedVacantPolicy">
+    <option value="off" selected>Off</option>
+  </select>
+  <select id="strengthToMarket">
+    <option value="standard" selected>Standard</option>
+  </select>
+</div>
+
+<!-- Hidden backfill for removed control to keep logic intact -->
+<div style="display:none">
+  <select id="renewalAwareness">
+    <option value="off">Off</option>
+    <option value="standard" selected>Standard (60–90d)</option>
+    <option value="strong">Strong (90–120d)</option>
+  </select>
+</div>
+
+<!-- Hidden backfill to keep logic intact after removing the visible control -->
+<div style="display:none">
+  <input id="maxWeeklyDec" type="number" value="2">
+</div>
+
+<!-- Hidden backfill: always enforce review for ≥5% changes -->
+<div style="display:none">
+  <input id="reviewLarge" type="checkbox" checked>
+</div>
+
+<script>
+(function(){
+  const sel = document.getElementById('seasonalityCurve');
+  const inputs = Array.from(document.querySelectorAll('#seasonalityGrid .month-input'));
+  const totalEl = document.getElementById('seasonalityTotal');
+
+  const PRESETS = {
+    normal:    [4,4,7,9,11,12,12,11,9,7,6,8],
+    minimal:   [8,8,8,8,8,9,9,9,9,8,8,8],
+    aggressive:[5,5,6,7,9,10,12,11,10,8,8,9]
+  };
+
+  function fill(values){
+    for(let i=0;i<12;i++){
+      const v = (values && values[i] != null) ? Number(values[i]) : 0;
+      const s = (Math.round(v*10)/10).toString();
+      inputs[i].value = s;
+      inputs[i].setAttribute('value', s);
+      inputs[i].style.color = '#e5e7eb';
+    }
+    updateTotal();
+  }
+
+  function setReadOnly(ro){
+    inputs.forEach(inp=>{
+      inp.readOnly = !!ro;
+      inp.style.opacity = ro ? 0.85 : 1;
+    });
+  }
+
+  function readInputs(){
+    return inputs.map(inp => parseFloat(inp.value||'0')||0);
+  }
+
+  function updateTotal(){
+    const sum = readInputs().reduce((a,b)=>a+b,0);
+    const rounded = Math.round(sum*10)/10;
+    totalEl.textContent = rounded + '%';
+    const ok = Math.abs(rounded - 100.0) < 0.05;
+    totalEl.classList.toggle('bad', !ok);
+    totalEl.classList.toggle('ok', ok);
+    return ok;
+  }
+
+  function applyFromSelect(){
+    const val = (sel && sel.value) ? sel.value : 'normal';
+    if(val === 'custom'){
+      const current = readInputs();
+      const allZero = current.every(v => v === 0);
+      if(allZero) fill(PRESETS.normal);
+      setReadOnly(false);
+    }else{
+      fill(PRESETS[val] || PRESETS.normal);
+      setReadOnly(true);
+    }
+  }
+
+  window.applySeasonalityFromUI = function(){
+    const val = (sel && sel.value) ? sel.value : 'normal';
+    if(val === 'custom'){
+      if(!updateTotal()){
+        alert('Seasonality total must equal 100% for Custom.');
+        return false;
+      }
+      const arr = readInputs().map(v => v/100);
+      allowedPctByMonth = arr;
+      try{ window.__seasonalityArray__ = arr.map(v => Math.min(1.20, Math.max(0.80, Number(v)||1))); }catch(e){}
+      return true;
+    }else{
+      const arr = (PRESETS[val] || PRESETS.normal).map(v => v/100);
+      allowedPctByMonth = arr;
+      try{ window.__seasonalityArray__ = arr.map(v => Math.min(1.20, Math.max(0.80, Number(v)||1))); }catch(e){}
+      return true;
+    }
+  };
+
+  if(sel){ sel.addEventListener('change', applyFromSelect); }
+  inputs.forEach(inp => inp.addEventListener('input', updateTotal));
+  applyFromSelect();
+  document.addEventListener("DOMContentLoaded", applyFromSelect);
+})();
+</script>
+
+<script>
+(function(){
+  const btn = document.getElementById('nlDropdownBtn');
+  const panel = document.getElementById('nlDropdownPanel');
+  const list = document.getElementById('nlTermList');
+  if(!btn || !panel || !list) return;
+
+  function build(){
+    list.innerHTML = "";
+    for(let t=2;t<=24;t++){
+      const id = "nl_opt_" + t;
+      const checked = (t>=2 && t<=14) ? 'checked' : '';
+      list.insertAdjacentHTML('beforeend', `
+        <label style="display:flex; align-items:center; gap:6px;">
+          <input type="checkbox" id="${id}" value="${t}" ${checked}>
+          <span>${t}</span>
+        </label>
+      `);
+    }
+    updateBtnLabel();
+  }
+
+  function getSelected(){
+    return Array.from(list.querySelectorAll('input:checked')).map(x => parseInt(x.value)).sort((a,b)=>a-b);
+  }
+
+  function setSelected(range){
+    list.querySelectorAll('input').forEach(inp => {
+      const v = parseInt(inp.value);
+      inp.checked = range ? (v >= range[0] && v <= range[1]) : false;
+    });
+    updateBtnLabel();
+  }
+
+  function updateBtnLabel(){
+    const sel = getSelected();
+    if(sel.length === 0){ btn.textContent = "Select"; return; }
+    let contiguous = true;
+    for(let i=1;i<sel.length;i++){ if(sel[i] !== sel[i-1]+1){ contiguous=false; break; } }
+    btn.textContent = contiguous ? `${sel[0]}–${sel[sel.length-1]}` : sel.slice(0,6).join(',') + (sel.length>6?'…':'');
+  }
+
+  window.readNLTerms = function(){
+    return getSelected();
+  };
+
+  const btnAll = document.getElementById('nlAll');
+  const btnNone = document.getElementById('nlNone');
+  const btnDef = document.getElementById('nlDefault');
+  if(btnAll) btnAll.addEventListener('click', ()=>{ setSelected([2,24]); });
+  if(btnNone) btnNone.addEventListener('click', ()=>{ setSelected(null); });
+  if(btnDef) btnDef.addEventListener('click', ()=>{ setSelected([2,14]); });
+
+  function togglePanel(){ panel.style.display = (panel.style.display==='block') ? 'none' : 'block'; }
+  btn.addEventListener('click', (e)=>{ e.stopPropagation(); togglePanel(); });
+  document.addEventListener('click', ()=>{ panel.style.display = 'none'; });
+  panel.addEventListener('click', (e)=> e.stopPropagation());
+
+  list.addEventListener('change', updateBtnLabel);
+  build();
+})();
+</script>
+
+<script>
+(function(){
+  const btn = document.getElementById('renDropdownBtn');
+  const panel = document.getElementById('renDropdownPanel');
+  const list = document.getElementById('renTermList');
+  if(!btn || !panel || !list) return;
+
+  function build(){
+    list.innerHTML = "";
+    for(let t=2;t<=24;t++){
+      const checked = (t>=2 && t<=14) ? 'checked' : '';
+      list.insertAdjacentHTML('beforeend', `
+        <label style="display:flex; align-items:center; gap:6px;">
+          <input type="checkbox" value="${t}" ${checked}>
+          <span>${t}</span>
+        </label>
+      `);
+    }
+    updateBtnLabel();
+  }
+
+  function getSelected(){
+    return Array.from(list.querySelectorAll('input:checked')).map(x => parseInt(x.value)).sort((a,b)=>a-b);
+  }
+
+  function setSelected(range){
+    list.querySelectorAll('input').forEach(inp => {
+      const v = parseInt(inp.value);
+      inp.checked = range ? (v >= range[0] && v <= range[1]) : false;
+    });
+    updateBtnLabel();
+  }
+
+  function updateBtnLabel(){
+    const sel = getSelected();
+    if(sel.length === 0){ btn.textContent = "Select"; return; }
+    let contiguous = true;
+    for(let i=1;i<sel.length;i++){ if(sel[i] !== sel[i-1]+1){ contiguous=false; break; } }
+    btn.textContent = contiguous ? `${sel[0]}–${sel[sel.length-1]}` : sel.slice(0,6).join(',') + (sel.length>6?'…':'');
+  }
+
+  window.readRenTermsCompact = function(){
+    const arr = getSelected();
+    return arr.length ? arr : [2,3,4,5,6,7,8,9,10,11,12,13,14];
+  };
+
+  const btnAll = document.getElementById('renAll');
+  const btnNone = document.getElementById('renNone');
+  const btnDef = document.getElementById('renDefault');
+  if(btnAll) btnAll.addEventListener('click', ()=>{ setSelected([2,24]); });
+  if(btnNone) btnNone.addEventListener('click', ()=>{ setSelected(null); });
+  if(btnDef) btnDef.addEventListener('click', ()=>{ setSelected([2,14]); });
+
+  function togglePanel(){ panel.style.display = (panel.style.display==='block') ? 'none' : 'block'; }
+  btn.addEventListener('click', (e)=>{ e.stopPropagation(); togglePanel(); });
+  document.addEventListener('click', ()=>{ panel.style.display = 'none'; });
+  panel.addEventListener('click', (e)=> e.stopPropagation());
+
+  list.addEventListener('change', updateBtnLabel);
+  build();
+})();
+</script>
+
+<script>
+(function(){
+  if (typeof window.readRenTermsCompact === 'function') {
+    window.readRenTerms = function(){ return window.readRenTermsCompact(); };
+  }
+})();
+</script>
+
+
+<script>
+(function(){
+  let fpChart, fpChartCtx;
+  const sel = document.getElementById('fpHistorySelect');
+  const lim = document.getElementById('fpHistoryLimit');
+
+  function getAllFloorplansFromHistory(){
+    try{
+      const hist = (typeof window.getHistory === 'function') ? window.getHistory() : [];
+      const set = new Set();
+      for(const h of hist){
+        if(h && h.kind === 'new' && Array.isArray(h.fpPoints)){
+          for(const p of h.fpPoints){ if(p && p.fp) set.add(p.fp); }
+        }
+      }
+      // Fallback to rent-roll snapshot if no history
+      if (set.size===0 && window.__rrChartState && Array.isArray(window.__rrChartState.fpPoints)){
+        window.__rrChartState.fpPoints.forEach(p=>{ if(p&&p.fp) set.add(p.fp); });
+      }
+      return Array.from(set).sort((a,b)=> a.localeCompare(b));
+    }catch(e){ return []; }
+  }
+
+  function ensureSelectOptions(){
+    if(!sel) return;
+    const fps = getAllFloorplansFromHistory();
+    const current = sel.value;
+    sel.innerHTML = fps.map(fp => `<option value="${fp.replace(/"/g,'&quot;')}">${fp}</option>`).join("");
+    // try to keep selection if still present
+    if(current && fps.includes(current)) sel.value = current;
+  }
+
+  function buildSeries(fp, limitN){
+    const hist = (typeof window.getHistory === 'function') ? window.getHistory() : [];
+    const pts = [];
+    for(const h of hist){
+      if(h && h.kind === 'new' && Array.isArray(h.fpPoints)){
+        const m = h.fpPoints.find(x => x.fp === fp);
+        if(m){
+          pts.push({ x: new Date(h.ts), y: m.price });
+        }
+      }
+    }
+    // reverse chronological -> chronological for plotting
+    pts.reverse();
+    if(limitN && limitN > 0 && pts.length > limitN){
+      // take the last 'limitN' chronological points
+      return pts.slice(pts.length - limitN);
+    }
+    // If no history points, fallback to a single snapshot from rent roll
+    if (!pts.length && window.__rrChartState && Array.isArray(window.__rrChartState.fpPoints)){
+      const snap = window.__rrChartState.fpPoints.find(x=>x.fp===fp);
+      if (snap){ return [{ x: new Date(window.__rrChartState.ts), y: snap.price }]; }
+    }
+    return pts;
+  }
+
+  function renderChart(){
+    if(!sel || !lim) return;
+    const fp = sel.value;
+    if(!fp){ return; }
+    const n = Math.max(5, Math.min(100, parseInt(lim.value||'30',10)));
+    const dataPts = buildSeries(fp, n);
+
+    if(!fpChartCtx){
+      fpChartCtx = document.getElementById('fpHistoryChart').getContext('2d');
+    }
+    if(fpChart){ fpChart.destroy(); }
+    fpChart = new Chart(fpChartCtx, {
+      type: 'line',
+      data: {
+        datasets: [{
+          label: fp + " base price",
+          parsing: false,
+          data: dataPts,
+          tension: 0.2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: (ctx)=> {
+                const v = ctx.parsed.y;
+                const d = ctx.parsed.x;
+                try{
+                  const ds = new Date(d).toLocaleString();
+                  return `$${Math.round(v).toLocaleString()} — ${ds}`;
+                }catch(e){ return `$${Math.round(v).toLocaleString()}`; }
+              }
+            }
+          }
+        },
+        scales: {
+          x: { type: 'time', time: { unit:'day' }, ticks:{ autoSkip:true } },
+          y: { beginAtZero: false }
+        }
+      }
+    });
+  }
+
+  window.refreshChartsFromRentRoll = function refreshChartsFromRentRoll(){
+    try{
+      const rows = Array.isArray(window.normRows) ? window.normRows : [];
+      if (!rows.length) return;
+      // Aggregate current rents by FP code/label
+      const by = new Map();
+      rows.forEach(r => {
+        const code = String(r.FP_CODE || r.Floorplan || r.FloorplanLabel || '').trim();
+        if (!code) return;
+        const curr = Number(r.CurrentRent)||0;
+        const acc = by.get(code) || {s:0,c:0};
+        acc.s += curr; acc.c += 1; by.set(code, acc);
+      });
+      const fpPoints = Array.from(by.entries()).map(([fp,{s,c}])=>({ fp, price: (c? (s/c):0) }));
+      if (!fpPoints.length) return;
+      window.__rrChartState = { ts: new Date().toISOString(), fpPoints };
+      // Update charts UI
+      ensureSelectOptions(); renderChart();
+      const note = document.getElementById('chartsSourceNote');
+      if (note){ note.textContent = 'Charts last refreshed from rent roll • ' + new Date().toLocaleString(); }
+    }catch(e){}
+  };
+
+  function refreshUI(){
+    ensureSelectOptions();
+    if(sel && !sel.value){
+      const opts = sel.querySelectorAll('option');
+      if(opts.length) sel.value = opts[0].value;
+    }
+    renderChart();
+  }
+
+  // Init on DOM ready
+  document.addEventListener('DOMContentLoaded', refreshUI);
+
+  // Re-render on selection change
+  if(sel) sel.addEventListener('change', renderChart);
+  if(lim) lim.addEventListener('input', renderChart);
+
+  // Also refresh after each run by monkey-patching addHistory to trigger a small refresh.
+  if(typeof window.addHistory === 'function'){
+    const _addHistory = window.addHistory;
+    window.addHistory = function(kind, cfg, tState, rowCount, fpPoints){
+      const result = _addHistory.apply(this, arguments);
+      // Only refresh if a new run occurred
+      try { refreshUI(); } catch(e){}
+      return result;
+    };
+  }
+})();
+</script>
+
+
+<script>
+(function(){
+  const listEl = document.getElementById('historyList');
+  const clearBtn = document.getElementById('clearHistoryBtn');
+
+  function formatKind(k){ return k==='new' ? 'New' : (k==='renew' ? 'Renew' : String(k||'')); }
+  function formatTs(s){ try{ return new Date(s).toLocaleString(); }catch(e){ return s; } }
+
+  window.renderHistoryList = function(){
+    if(!listEl) return;
+    const hist = (typeof window.getHistory === 'function') ? window.getHistory() : [];
+    if(!hist.length){
+      listEl.innerHTML = '<em>No history yet. Run New or Renew to populate.</em>';
+      return;
+    }
+    const rows = hist.map((h,i)=>{
+      const parts = [
+        `<strong>#${hist.length - i}</strong>`,
+        `• ${formatKind(h.kind)}`,
+        `• rows: ${h.rows||0}`,
+        `• ${formatTs(h.ts)}`
+      ];
+      return `<div style="padding:4px 0; border-top:1px solid #0b2035">${parts.join(' ')}</div>`;
+    }).join('');
+    listEl.innerHTML = rows;
+  };
+
+  // Wire clear button
+  if(clearBtn){
+    clearBtn.addEventListener('click', ()=>{
+      try{ window.clearHistory && window.clearHistory(); }catch(e){}
+      window.renderHistoryList && window.renderHistoryList();
+    });
+  }
+
+  // Initial render on DOM ready
+  document.addEventListener('DOMContentLoaded', ()=>{
+    window.renderHistoryList && window.renderHistoryList();
+  });
+
+  // Hook into addHistory so the list refreshes after each run
+  if(typeof window.addHistory === 'function'){
+    const _addHistory = window.addHistory;
+    window.addHistory = function(kind, cfg, tState, rowCount, fpPoints){
+      const r = _addHistory.apply(this, arguments);
+      try{ window.renderHistoryList && window.renderHistoryList(); }catch(e){}
+      return r;
+    };
+  }
+})();
+</script>
+
+
+<script>
+(function(){
+  // Apply a settings snapshot to the UI without running pricing.
+  function setVal(id, val){
+    const el = document.getElementById(id);
+    if(!el) return;
+    if(el.type === 'checkbox'){
+      el.checked = !!val;
+    } else if(el.tagName === 'SELECT' || el.tagName === 'INPUT'){
+      el.value = val;
+    }
+  }
+
+  function setTermCheckboxes(listSelector, terms){
+    try{
+      const list = document.querySelectorAll(listSelector + ' input[type="checkbox"]');
+      const set = new Set((terms||[]).map(Number));
+      list.forEach(inp => { inp.checked = set.has(parseInt(inp.value,10)); });
+    }catch(e){}
+  }
+
+  function setNLButtonLabel(){
+    const btn = document.getElementById('nlDropdownBtn');
+    const sel = Array.from(document.querySelectorAll('#nlTermList input:checked')).map(x=>parseInt(x.value,10)).sort((a,b)=>a-b);
+    if(!btn) return;
+    if(sel.length===0){ btn.textContent = "Select"; return; }
+    let contiguous = true;
+    for(let i=1;i<sel.length;i++){ if(sel[i] !== sel[i-1]+1){ contiguous=false; break; } }
+    btn.textContent = contiguous ? `${sel[0]}–${sel[sel.length-1]}` : sel.slice(0,6).join(',') + (sel.length>6?'…':'');
+  }
+
+  function setRenButtonLabel(){
+    const btn = document.getElementById('renDropdownBtn');
+    const sel = Array.from(document.querySelectorAll('#renTermList input:checked')).map(x=>parseInt(x.value,10)).sort((a,b)=>a-b);
+    if(!btn) return;
+    if(sel.length===0){ btn.textContent = "Select"; return; }
+    let contiguous = true;
+    for(let i=1;i<sel.length;i++){ if(sel[i] !== sel[i-1]+1){ contiguous=false; break; } }
+    btn.textContent = contiguous ? `${sel[0]}–${sel[sel.length-1]}` : sel.slice(0,6).join(',') + (sel.length>6?'…':'');
+  }
+
+  window.applyCfgSnapshot = function(cfg){
+    if(!cfg) return;
+    try{
+      // Strategy
+      if(typeof cfg.comfortTarget === 'number') setVal('comfortTarget', Math.round(cfg.comfortTarget*1000)/10);
+      else {
+        if (typeof cfg.bandLow === 'number' && typeof cfg.bandHigh === 'number'){
+          var mid = (cfg.bandLow + cfg.bandHigh)/2;
+          if (isFinite(mid)) setVal('comfortTarget', Math.round(mid*1000)/10);
+        }
+      }
+      if (typeof window._syncBandsFromTarget === 'function') window._syncBandsFromTarget();
+      if(cfg.convSensitivity) setVal('convSensitivity', cfg.convSensitivity);
+      if(cfg.priceResponse) setVal('priceResponse', cfg.priceResponse);
+
+      // Seasonality preset only (values already handled by existing logic upon change)
+      if(cfg.seasonalityCurve) {
+        setVal('seasonalityCurve', cfg.seasonalityCurve);
+        // trigger preset application if helper exists
+        try{ window.applySeasonalityFromUI && window.applySeasonalityFromUI(); }catch(e){}
+      }
+
+      // Renewals
+      setVal('allowDecAbove', !!cfg.allowDecAbove);
+      setVal('capAllTerms', !!cfg.capAllTerms);
+      if(typeof cfg.pctToNew === 'number') setVal('pctToNew', Math.round(cfg.pctToNew*100));
+      if(typeof cfg.renMin === 'number') setVal('renMin', Math.round(cfg.renMin*100));
+      if(typeof cfg.renMax === 'number') setVal('renMax', Math.round(cfg.renMax*100));
+      if(typeof cfg.renAboveMin === 'number') setVal('renAboveMin', Math.round(cfg.renAboveMin*100));
+      if(typeof cfg.renAboveMax === 'number') setVal('renAboveMax', Math.round(cfg.renAboveMax*100));
+
+      // Terms
+      if(Array.isArray(cfg.nlTerms)) { setTermCheckboxes('#nlTermList', cfg.nlTerms); setNLButtonLabel(); }
+      if(Array.isArray(cfg.renTerms)) { setTermCheckboxes('#renTermList', cfg.renTerms); setRenButtonLabel(); }
+
+      // Safety
+      if(cfg.changeCadence) setVal('changeCadence', cfg.changeCadence);
+
+      // Visual feedback
+      try{
+        const el = document.createElement('div');
+        el.className = 'note';
+        el.textContent = 'Settings restored from history. Review and click Run when ready.';
+        const parent = document.querySelector('.panel .card'); // first card
+        if(parent) parent.prepend(el);
+        setTimeout(()=>{ if(el && el.parentNode) el.parentNode.removeChild(el); }, 3000);
+      }catch(e){}
+    }catch(e){ console.error('applyCfgSnapshot error', e); }
+  };
+
+  // Extend history list to include "Restore" link per row
+  if(typeof window.renderHistoryList === 'function'){
+    const _render = window.renderHistoryList;
+    window.renderHistoryList = function(){
+      _render();
+      const listEl = document.getElementById('historyList');
+      if(!listEl) return;
+      const hist = (typeof window.getHistory === 'function') ? window.getHistory() : [];
+      const items = listEl.querySelectorAll('div[data-hrow]');
+      if(items.length){ return; } // already enhanced
+      // Rebuild with restore links
+      if(!hist.length){
+        listEl.innerHTML = '<em>No history yet. Run New or Renew to populate.</em>';
+        return;
+      }
+      const rows = hist.map((h,i)=>{
+        const idx = i;
+        const kind = h.kind==='new' ? 'New' : (h.kind==='renew' ? 'Renew' : String(h.kind||''));
+        const stamp = (function(s){ try{ return new Date(s).toLocaleString(); }catch(e){ return s; } })(h.ts);
+        return `<div data-hrow="${idx}" style="padding:4px 0; border-top:1px solid #0b2035">
+          <strong>#${hist.length - i}</strong> • ${kind} • rows: ${h.rows||0} • ${stamp}
+          <a href="#" data-restore="${idx}" style="margin-left:8px; color:#22d3ee; text-decoration:underline;">Restore</a>
+        </div>`;
+      }).join('');
+      listEl.innerHTML = rows;
+
+      listEl.addEventListener('click', (e)=>{
+        const a = e.target.closest('a[data-restore]');
+        if(!a) return;
+        e.preventDefault();
+        const idx = parseInt(a.getAttribute('data-restore'),10);
+        const hist2 = (typeof window.getHistory === 'function') ? window.getHistory() : [];
+        const item = hist2[idx];
+        if(item && item.cfg){ window.applyCfgSnapshot(item.cfg); }
+      });
+    };
+  }
+})();
+</script>
+
+
+<script>
+(function(){
+  function inHorizon(dt){
+    const horizonMs = 120*86400000, now = Date.now();
+    const d = new Date(dt);
+    if (isNaN(d)) return false;
+    const diff = d.getTime() - now;
+    return diff >= 0 && diff <= horizonMs;
+  }
+  
+  
+function calcCounts(list){
+  const N = list.length;
+  const status = (s)=> String(s||'').toLowerCase();
+  const isVac = (s)=> status(s).includes('vacant');          // 'vacant unrented', 'vacant rented', etc.
+  const isNotice = (s)=> status(s).includes('notice');       // 'occupied (on-notice)', variants
+  const isOccLike = (s)=> status(s).startsWith('occupied') || status(s).includes('notice');
+
+  const occ = list.filter(r=> isOccLike(r.Status)).length;
+  const vac = list.filter(r=> isVac(r.Status)).length;
+  const notices = list.filter(r=> isNotice(r.Status)).length;
+  const preRaw = list.filter(r=> r.PreleaseStart).length;
+  const pre = Math.min(preRaw, vac + notices); // cannot replace more than pending move-outs
+  const occPct = N ? (occ / N) : 0;
+
+  // Projected/Trend if no more leases happen and all notices move out:
+  // projected = 1 - ((Vacant + Notices - Prelease) / N)
+  let projected = N ? (1 - ((vac + notices - pre) / N)) : 0;
+  projected = Math.max(0, Math.min(1, projected)); // clamp to [0,1]
+
+  return { N, vac, notices, pre, occ, occPct, projected };
+}
+function
+ healthFrom(projected, occPct){
+    // Simple gut-check thresholds (adjustable later)
+    // Healthy: trending >= 96% or occ >= 96%
+    // Watch: 93% <= trending < 96% (or occ in same band)
+    // Risk: trending < 93% (or occ < 93%)
+    const t = (projected||0)*100, o = (occPct||0)*100;
+    if (t >= 96 || o >= 96) return {label:"Healthy", cls:"health-ok"};
+    if (t >= 93 && t < 96) return {label:"Watch", cls:"health-watch"};
+    return {label:"Soft", cls:"health-risk"};
+  }
+  function fmtPct(v){ return (isNaN(v)? '—' : (Math.round(v*1000)/10)+'%'); }
+  function fmtInt(v){ return (isNaN(v)? '—' : String(v)); }
+
+  function renderBoxScore(norm){
+
+    const body = document.getElementById('boxScoreBody');
+    const summary = document.getElementById('boxScoreSummary');
+    if(!body){ return; }
+    if(!Array.isArray(norm) || !norm.length){
+      body.innerHTML = '<tr><td colspan="8" class="note">No data. Upload & confirm mapping, then run.</td></tr>';
+      if(summary) summary.innerHTML = '';
+      return;
+    }
+    // Community row
+    const comm = calcCounts(norm);
+    const h = healthFrom(comm.projected, comm.occPct);
+    if(summary){
+      summary.innerHTML = `
+        <div class="health-chip ${h.cls}">
+          <strong>Community</strong>
+          <span>• Units: ${fmtInt(comm.N)}</span>
+          <span>• Occ: ${fmtPct(comm.occPct)}</span>
+          <span>• Trending: ${fmtPct(comm.projected)}</span>
+          <span>• Notices: ${fmtInt(comm.notices)}</span>
+          <span>• Preleases: ${fmtInt(comm.pre)}</span>
+        </div>`;
+    }
+
+    let rows = '';
+    // Floorplan rows
+    const byFP = (function groupBy(arr,fn){ const m=new Map(); for(const x of arr){ const k=fn(x); m.set(k,(m.get(k)||[]).concat([x])); } return m; })(norm, r=>r.Floorplan||"(unknown)");
+    const fps = Array.from(byFP.keys()).sort((a,b)=>a.localeCompare(b));
+    for(const fp of fps){
+      const list = byFP.get(fp)||[];
+      const s = calcCounts(list);
+      rows += `<tr>
+        <td>${fp}</td>
+        <td>${fmtInt(s.N)}</td>
+        <td>${fmtInt(s.vac)}</td>
+        <td>${fmtInt(s.notices)}</td>
+        <td>${fmtInt(s.pre)}</td>
+        <td>${fmtInt(s.occ)}</td>
+        <td>${fmtPct(s.occPct)}</td>
+        <td>${fmtPct(s.projected)}</td>
+      </tr>`;
+    }
+    
+    // Build totals footer (community metrics)
+    const foot = document.getElementById('boxScoreFoot');
+    if(foot){
+      const totals = calcCounts(norm);
+      foot.innerHTML = `<tr style="background:#0b1220; font-weight:600; border-top:2px solid #0b2035">
+        <td style="text-align:left">Totals</td>
+        <td>${fmtInt(totals.N)}</td>
+        <td>${fmtInt(totals.vac)}</td>
+        <td>${fmtInt(totals.notices)}</td>
+        <td>${fmtInt(totals.pre)}</td>
+        <td>${fmtInt(totals.occ)}</td>
+        <td>${fmtPct(totals.occPct)}</td>
+        <td>${fmtPct(totals.projected)}</td>
+      </tr>`;
+    }
+    body.innerHTML = rows;
+  }
+
+  // Hook into run flows: refresh box score after each Run New / Run Renew
+  const _runNewBtn = document.getElementById('runNew');
+  const _runRenBtn = document.getElementById('runRenew');
+  function refreshAfterRun(){ try{ renderBoxScore(window.mappedRows || []); }catch(e){} }
+  if(_runNewBtn){ _runNewBtn.addEventListener('click', ()=>{ Promise.resolve().then(refreshAfterRun); }); }
+  if(_runRenBtn){ _runRenBtn.addEventListener('click', ()=>{ Promise.resolve().then(refreshAfterRun); }); }
+
+  // Expose for manual refresh
+  window.renderBoxScore = renderBoxScore;
+})();
+</script>
+
+
+<script>
+(function(){
+  function cardFromHeading(h2){
+    // walk up to the enclosing .card
+    let el = h2;
+    while(el && !el.classList.contains('card')) el = el.parentElement;
+    return el;
+  }
+  function computeCards(){
+    const map = { home:[], settings:[], newPricing:[], renewals:[], charts:[], history:[] };
+    document.querySelectorAll('h2[data-tab-scope]').forEach(h2=>{
+      const scopes = (h2.getAttribute('data-tab-scope')||'').split(/\s+/).filter(Boolean);
+      const card = cardFromHeading(h2);
+      if(!card) return;
+      scopes.forEach(sc=>{ if(map[sc]) map[sc].push(card); });
+    });
+    return map;
+  }
+  const tabMap = computeCards();
+  
+  function setTab(tab){
+    // buttons
+    document.querySelectorAll('#tabBar [data-tab]').forEach(b=> b.classList.toggle('active', b.getAttribute('data-tab')===tab));
+    // hide all cards first
+    document.querySelectorAll('.card').forEach(c=> c.classList.add('tab-hidden'));
+    // show those mapped to tab
+    const list = tabMap[tab] || [];
+    list.forEach(c=> c.classList.remove('tab-hidden'));
+    window._activeTab = tab;
+    // If History tab, trigger a gentle refresh on history UI (chart + list) if present
+    if(tab==='history'){
+      try{
+        const sel = document.getElementById('fpHistorySelect');
+        if(sel){
+          // ensure at least one option is selected, then fire change
+          if(!sel.value && sel.options && sel.options.length){ sel.value = sel.options[0].value; }
+          sel.dispatchEvent(new Event('change', {bubbles:true}));
+        }
+        if(window.renderHistoryList) window.renderHistoryList();
+      }catch(e){}
+    }
+  }
+
+  // Wire clicks
+  document.querySelectorAll('#tabBar [data-tab]').forEach(btn=>{
+    btn.addEventListener('click', ()=> setTab(btn.getAttribute('data-tab')));
+  });
+  // Default tab
+  setTab('settings');
+  // Expose for console
+  window.setTab = setTab;
+})();
+</script>
+
+
+
+<script>
+(function(){
+  function monthKey(dt){
+    const d = new Date(dt);
+    if (isNaN(d)) return null;
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+  }
+  function monthLabelFromKey(k){
+    try{
+      const [y,m] = k.split("-").map(Number);
+      const d = new Date(y, m-1, 1);
+      return d.toLocaleString(undefined, { month: "short", year: "numeric" });
+    }catch(e){ return k; }
+  }
+  function nextFiveMonthKeys(){
+    const start = new Date();
+    start.setDate(1);
+    const keys = [];
+    for (let i=0;i<5;i++){
+      const d = new Date(start);
+      d.setMonth(d.getMonth()+i);
+      keys.push(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"));
+    }
+    return keys;
+  }
+  function isNoticeStatus(s){ const v = String(s||"").toLowerCase(); return v.includes("notice"); }
+  function isOccupiedLike(s){ const v = String(s||"").toLowerCase(); return v.startsWith("occupied") || v.includes("notice"); }
+  function computeMTMTotal(rows){
+    const now = Date.now();
+    let total = 0;
+    for(const r of (rows||[])){
+      const s = String(r.Status||"").toLowerCase();
+      const isOcc = isOccupiedLike(s);
+      const isMTMExplicit = s.includes("mtm") || s.includes("month-to-month") || s.includes("month to month");
+      const d = new Date(r.LeaseEnd||"");
+      const past = !isNaN(d) && (d.getTime() < now);
+      if (isOcc && (isMTMExplicit || past)) total++;
+    }
+    return total;
+  }
+  function collectRenewedByMonth(){
+    // Proxy: "Renewed" = units for which offers were generated in the latest Renewals run.
+    // We dedupe by UnitID per month of LeaseEnd.
+    const out = {}; // monthKey -> Set(unitId)
+    try{
+      if (!Array.isArray(window.__renewalsRows) || window.__renewalsRows.length <= 1) return out;
+      for (let i=1;i<window.__renewalsRows.length;i++){
+        const row = window.__renewalsRows[i];
+        const unit = String(row[0]);
+        const leaseEnd = row[2];
+        const k = monthKey(leaseEnd);
+        if (!k) continue;
+        if (!out[k]) out[k] = new Set();
+        out[k].add(unit);
+      }
+    }catch(e){}
+    return out;
+  }
+
+  function renderRenewalSummary(rows){
+    const body = document.getElementById('renewalSummaryBody');
+    const mtmEl = document.getElementById('mtmSummary');
+    if (!body) return;
+    if (!Array.isArray(rows) || !rows.length){
+      body.innerHTML = '<tr><td colspan="6" class="note">No data. Upload & confirm mapping, then run.</td></tr>';
+      if (mtmEl) mtmEl.textContent = '';
+      return;
+    }
+
+    const keys = nextFiveMonthKeys();
+    const counts = {}; // k -> { total, notice, renewed, undecided, conv }
+    keys.forEach(k => counts[k] = { total:0, notice:0, renewed:0, undecided:0, conv:"—" });
+
+    const renewedMap = collectRenewedByMonth();
+
+    // Tally expirations and notice
+    for(const r of rows){
+      const k = monthKey(r.LeaseEnd);
+      if (!k || !counts[k]) continue;
+      counts[k].total += 1;
+      if (isNoticeStatus(r.Status)) counts[k].notice += 1;
+    }
+
+    // Renewed (offers sent) per month
+    for(const k of keys){
+      const set = renewedMap[k];
+      counts[k].renewed = set ? set.size : 0;
+    }
+
+    // Undecided and conversion
+    for(const k of keys){
+      const c = counts[k];
+      c.undecided = Math.max(0, c.total - c.notice - c.renewed);
+      const denom = (c.total - c.notice);
+      if (denom > 0){
+        const pct = Math.round((c.renewed / denom) * 100);
+        c.conv = String(pct) + '%';
+      } else {
+        c.conv = '—';
+      }
+    }
+
+    const trs = keys.map(k => {
+      const c = counts[k];
+      return `<tr>
+        <td>${monthLabelFromKey(k)}</td>
+        <td>${c.total}</td>
+        <td>${c.notice}</td>
+        <td>${c.renewed}</td>
+        <td>${c.undecided}</td>
+        <td>${c.conv}</td>
+      </tr>`;
+    }).join('');
+
+    body.innerHTML = trs || '<tr><td colspan="6" class="note">No expirations found in the next five months.</td></tr>';
+
+    if (mtmEl){
+      const mtm = computeMTMTotal(rows);
+      mtmEl.textContent = "Month-to-month units (estimated): " + mtm + " • Note: 'Renewed' reflects offers generated in the app.";
+    }
+  }
+
+  // Hook into flows
+  function refresh(){ try{ renderRenewalSummary(window.mappedRows || []); }catch(e){} }
+
+  (function wire(){
+    const btnNew = document.getElementById('runNew');
+    const btnRen = document.getElementById('runRenew');
+    if (btnNew) btnNew.addEventListener('click', ()=>{ Promise.resolve().then(refresh); });
+    if (btnRen) btnRen.addEventListener('click', ()=>{ Promise.resolve().then(refresh); });
+    const confirm = document.getElementById('confirmMapping');
+    if (confirm) confirm.addEventListener('click', ()=>{ setTimeout(refresh, 50); });
+    document.addEventListener('DOMContentLoaded', ()=>{ refresh(); });
+  })();
+})();
+</script>
+
+
+<script>
+(function(){
+  function cardFromHeading(h2){
+    let el = h2;
+    while (el && !el.classList.contains('card')) el = el.parentElement;
+    return el;
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    // Mark all Settings cards
+    document.querySelectorAll('h2[data-tab-scope*="settings"]').forEach(h2 => {
+      const card = cardFromHeading(h2);
+      if (card) card.classList.add('settings-card');
+    });
+    // Reflow Strategy top row: move New Lease Terms dropdown to a third column
+    try{
+      const h2s = Array.from(document.querySelectorAll('h2[data-tab-scope="settings"]'));
+      const strategyH2 = h2s.find(h => h.textContent.trim() === 'Strategy');
+      if (strategyH2) {
+        const card = cardFromHeading(strategyH2);
+        const row = card ? card.querySelector('.row') : null;
+        if (row) {
+          row.classList.add('strategy-row');
+          // Find the inline-compact NL terms block currently under High input
+          const nlBlock = card.querySelector('.inline-compact');
+          if (nlBlock && nlBlock.parentElement && nlBlock.parentElement !== row) {
+            // Move it to be the third grid column
+            row.appendChild(nlBlock);
+            // Tidy its spacing
+            nlBlock.style.marginTop = '0';
+            nlBlock.style.justifyContent = 'flex-end';
+          }
+        }
+      }
+    }catch(e){}
+  });
+})();
+</script>
+
+
+<script>
+(function(){
+  function gotoTab(name){
+    const btn = document.querySelector('#tabBar [data-tab="'+name+'"]');
+    if (btn) btn.click();
+  }
+  function clickIf(id){ const el=document.getElementById(id); if(el) el.click(); }
+  function wire(){
+    // Set active tab on body
+    document.addEventListener('click', function(e){
+      const t = e.target.closest('#tabBar [data-tab]');
+      if (t) document.body.dataset.activeTab = t.getAttribute('data-tab');
+    });
+    const active = document.querySelector('#tabBar .active[data-tab]');
+    if (active) document.body.dataset.activeTab = active.getAttribute('data-tab');
+
+    // Home buttons that call existing controls
+    const map = {
+      homeRunNew:    'runNew',
+      homeExportNew: 'exportNew',
+      homeRunRenew:  'runRenew',
+      homeExportRenew: 'exportRenew'
+    };
+    Object.keys(map).forEach(hid=>{
+      const targetId = map[hid];
+      const hb = document.getElementById(hid);
+      if (hb){
+        hb.addEventListener('click', ()=> clickIf(targetId));
+      }
+    });
+
+    // View links
+    document.querySelectorAll('[data-goto]').forEach(el=>{
+      el.addEventListener('click', ()=> gotoTab(el.getAttribute('data-goto')));
+    });
+  }
+  document.addEventListener('DOMContentLoaded', wire);
+})();
+</script>
+
+
+
+<script>
+(function(){
+  function setTabDisabled(tab, disabled){
+    const b = document.querySelector('#tabBar [data-tab="'+tab+'"]');
+    if (!b) return;
+    b.classList.toggle('disabled', !!disabled);
+  }
+  function enableNew(){ setTabDisabled('newPricing', false); }
+  function enableRenew(){ setTabDisabled('renewals', false); }
+  function wireLocks(){
+    // Disable on load
+    setTabDisabled('newPricing', true);
+    setTabDisabled('renewals', true);
+    // Intercept clicks on disabled tabs (allow hover for tooltip)
+    const bar = document.getElementById('tabBar');
+    if (bar){
+      bar.addEventListener('click', function(e){
+        const t = e.target.closest('[data-tab]');
+        if (t && t.classList.contains('disabled')){
+          e.preventDefault();
+          e.stopPropagation();
+          t.classList.add('wiggle');
+          setTimeout(()=>t.classList.remove('wiggle'), 200);
+        }
+      }, true);
+    }
+    // If user clicks underlying (hidden) buttons anywhere, unlock
+    const rn = document.getElementById('runNew');
+    const rr = document.getElementById('runRenew');
+    if (rn) rn.addEventListener('click', enableNew);
+    if (rr) rr.addEventListener('click', enableRenew);
+    // Also unlock when Home buttons are used
+    const hrn = document.getElementById('homeRunNew');
+    const hrr = document.getElementById('homeRunRenew');
+    if (hrn) hrn.addEventListener('click', enableNew);
+    if (hrr) hrr.addEventListener('click', enableRenew);
+  }
+  document.addEventListener('DOMContentLoaded', wireLocks);
+})();
+</script>
+
+
+
+<script>
+(function(){
+  const LS_KEY = 'rm_lastUpload'; // value: JSON {name,time}
+  function fmtTime(ts){ try{ return new Date(ts).toLocaleString(); } catch(e){ return '—'; } }
+  function setDataAsOf(name, time){
+    const chip = document.getElementById('homeDataAsOf');
+    if (!chip) return;
+    if (time){
+      chip.textContent = 'Data as of ' + fmtTime(time) + (name ? (' • ' + name) : '');
+    }else{
+      chip.textContent = 'Data as of —';
+    }
+  }
+  function saveLastUpload(name, time){
+    try{ localStorage.setItem(LS_KEY, JSON.stringify({name, time})); }catch(e){}
+    setDataAsOf(name, time);
+  }
+  function loadLastUpload(){
+    try{
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const {name, time} = JSON.parse(raw);
+      if (time) setDataAsOf(name, time);
+    }catch(e){}
+  }
+
+  function computeStatus(){
+    const rows = Array.isArray(window.mappedRows) ? window.mappedRows : [];
+    const now = Date.now();
+    const in30 = now + 30*86400000;
+    let occ=0, total=0, exp30=0, undecided=0, vacant=0, notice=0, prelease=0;
+
+    // capture renewed/offered-set from latest renewals run if available
+    const renewedSet = new Set();
+    try{
+      if (Array.isArray(window.__renewalsRows) && window.__renewalsRows.length>1){
+        for(let i=1;i<window.__renewalsRows.length;i++){ renewedSet.add(String(window.__renewalsRows[i][0])); }
+      }
+    }catch(e){}
+
+    for(const r of rows){
+      const s = String(r.Status||'').toLowerCase();
+      // Prelease detection: any parseable future date or truthy flag
+      const p = r.PreleaseStart || r.PreleaseDate || r.Prelease || r.Preleased;
+      if (p){
+        const pt = new Date(p).getTime();
+        if (!isNaN(pt)) { if (pt >= now) prelease++; } else { prelease++; }
+      }
+      const isOcc = (s==='occupied' || s.startsWith('notice'));
+      if (isOcc) occ++;
+      total++;
+      const t = new Date(r.LeaseEnd||'').getTime();
+      if (!isNaN(t) && t>=now && t<=in30){
+        exp30++;
+        const isNotice = s.startsWith('notice');
+        const unit = String(r.Unit||r.UnitID||'');
+        const isRenewed = unit && renewedSet.has(unit);
+        if (!isNotice && !isRenewed) undecided++;
+      }
+    }
+    const occPct = total? Math.round((occ/total)*1000)/10 : null; // one decimal
+    // Trending = 100 - ((Vacant + Notice - Prelease) / Total)*100
+    const rawTrend = total? 100 - ((vacant + notice - prelease) * 100 / total) : null;
+    const trendPct = (rawTrend==null) ? null : Math.max(0, Math.min(100, Math.round(rawTrend*10)/10));
+    let badgeClass=''; let badgeText='—';
+    if (occPct!=null){
+      const low = parseFloat(document.getElementById('comfortLow')?.value || '93');
+      if (occPct >= Math.max(93, low)) { badgeClass='ok'; }
+      else if (occPct >= low-3) { badgeClass='warn'; }
+      else { badgeClass='bad'; }
+      badgeText = occPct.toFixed(1) + '%';
+    }
+    const badge = document.getElementById('homeOccBadge');
+    if (badge){
+      badge.classList.remove('ok','warn','bad');
+      // update trend badge similarly
+      const tBadge = document.getElementById('homeTrendBadge');
+      if (tBadge){
+        tBadge.classList.remove('ok','warn','bad');
+        if (trendPct!=null){
+          let tClass='';
+          const lowT = parseFloat(document.getElementById('comfortLow')?.value || '93');
+          if (trendPct >= Math.max(93, lowT)) tClass='ok';
+          else if (trendPct >= lowT-3) tClass='warn';
+          else tClass='bad';
+          if (tClass) tBadge.classList.add(tClass);
+          tBadge.textContent = trendPct.toFixed(1) + '%';
+        } else {
+          tBadge.textContent = '—';
+        }
+      }
+      if (badgeClass) badge.classList.add(badgeClass);
+      badge.textContent = badgeText;
+    }
+    const occMeta = document.getElementById('homeOccMeta');
+    if (occMeta) occMeta.textContent = total? ('Based on '+total+' units • Occupied-like: '+occ) : 'Upload to compute.';
+
+    const renText = (exp30||exp30===0) ? (undecided+' undecided of '+exp30+' expiring') : '—';
+    const renEl = document.getElementById('homeRen30');
+    if (renEl) renEl.textContent = renText;
+    const renMeta = document.getElementById('homeRen30Meta');
+    if (renMeta) renMeta.textContent = (exp30? 'Next 30 days' : '—');
+
+    // Alerts
+    const alerts = [];
+    const low = parseFloat(document.getElementById('comfortLow')?.value || '93');
+    if (occPct!=null && occPct < low) alerts.push('Occupancy below comfort ('+low+'%)');
+    if (undecided>0) alerts.push(undecided+' renewals undecided in 30d');
+    const a = document.getElementById('homeAlertsMeta');
+    if (a) a.textContent = alerts.length? alerts.join(' • ') : 'No alerts.';
+  }
+
+  function wire(){
+    // Load last upload from localStorage
+    loadLastUpload();
+
+    // Capture uploads globally
+    document.addEventListener('change', function(e){
+      const t = e.target;
+      if (t && t.type==='file' && t.files && t.files[0]){
+        saveLastUpload(t.files[0].name, Date.now());
+        // compute soon (after mapping confirmation user can recalc again)
+        setTimeout(computeStatus, 300);
+      }
+    }, true);
+
+    // Recompute after mapping confirmation if present
+    const cm = document.getElementById('confirmMapping');
+    if (cm){
+      cm.addEventListener('click', function(){ setTimeout(computeStatus, 500); });
+    }
+
+    // Also recompute after Renewals or New runs (ids may exist)
+    ['runNew','runRenew'].forEach(id=>{
+      const b = document.getElementById(id);
+      if (b) b.addEventListener('click', ()=> setTimeout(computeStatus, 600));
+    });
+
+    // Initial compute if data already loaded
+    setTimeout(computeStatus, 500);
+  }
+  document.addEventListener('DOMContentLoaded', wire);
+})();
+</script>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  // Make Home the landing tab
+  const homeBtn = document.querySelector('#tabBar [data-tab="home"]');
+  if (homeBtn) { homeBtn.click(); }
+});
+</script>
+
+<script>
+(function(){
+  function clamp01(x){ return Math.max(0, Math.min(1, Number.isFinite(x)?x:0)); }
+  function pct(x, d=1){ return (clamp01(x)*100).toFixed(d)+'%'; }
+  function pp(x, d=1){ return (Number(x)||0).toFixed(d)+' pp'; }
+  function setText(root, sel, v){ const el = root.querySelector(sel); if(el) el.textContent = v; }
+  function classAs(el, cls){ if(!el) return; el.classList.remove('green','red','amber','neutral'); el.classList.add(cls); }
+
+  function buildStatusSummarySafe(){
+    var cfg = (typeof readCfg==='function') ? readCfg() : {};
+    var totalUnits   = window.totalUnits   ?? cfg.totalUnits   ?? 0;
+    var occupiedNow  = window.occupiedNow  ?? cfg.occupiedNow  ?? 0;
+    var onNotice     = window.onNotice     ?? cfg.onNotice     ?? 0;
+    var preleased    = window.preleased    ?? cfg.preleased    ?? 0;
+
+    var targetOcc    = (typeof cfg.comfortTarget==='number') ? cfg.comfortTarget : (cfg.targetOcc ?? 0.95);
+    var todayOcc     = totalUnits>0 ? (occupiedNow/totalUnits) : 0;
+
+    var undecided30d = window.undecidedRenewals30d ?? cfg.undecidedRenewals30d ?? 0;
+    var expiring30d  = window.expiring30d ?? cfg.expiring30d ?? 0;
+
+    var approvals7d  = window.approvals7d ?? cfg.approvals7d ?? 0;
+    var convToMoveIn = (typeof cfg.convToMoveIn==='number') ? cfg.convToMoveIn : 0.82;
+
+    var strugglingFPs = Array.isArray(window.strugglingFPs) ? window.strugglingFPs : (cfg.strugglingFPs || []);
+    var staleUnits    = Array.isArray(window.staleUnits30d) ? window.staleUnits30d : (cfg.staleUnits30d || []);
+
+    var trendingOcc = totalUnits>0 ? ((occupiedNow + preleased - onNotice) / totalUnits) : 0;
+    trendingOcc = clamp01(trendingOcc);
+
+    var gapPP = (targetOcc - trendingOcc) * 100;
+    var homesNeeded = (gapPP>0 && totalUnits>0) ? Math.ceil(totalUnits * gapPP / 100) : 0;
+
+    var pacingPP = totalUnits>0 ? (approvals7d * convToMoveIn * (30/7) / totalUnits * 100) : 0;
+
+    return {
+      totalUnits, occupiedNow, onNotice, preleased,
+      trendingOcc, todayOcc, targetOcc,
+      gapPP, homesNeeded,
+      undecided30d, expiring30d,
+      approvals7d, convToMoveIn, pacingPP,
+      strugglingFPs, staleUnits
+    };
+  }
+
+  function paintStatus45(){
+    var root = document.getElementById('status45-card');
+    if(!root) return;
+    var s = buildStatusSummarySafe();
+
+    setText(root,'[data-kpi="trendingOcc"]', pct(s.trendingOcc, 2));
+    setText(root,'[data-kpi="todayOcc"]', pct(s.todayOcc, 1));
+    setText(root,'[data-kpi="targetOcc"]', pct(s.targetOcc, 0));
+    classAs(document.getElementById('kpi_trending_occ'), (s.trendingOcc >= s.targetOcc) ? 'green' : 'red');
+
+    setText(root,'[data-kpi="gapPP"]', __signedPctVal(s.gapPP, 1));
+    setText(root,'[data-kpi="homesNeeded"]', String(s.homesNeeded));
+    classAs(document.getElementById('kpi_pacing_gap'), (s.gapPP <= 0) ? 'green' : 'red');
+
+    setText(root,'#kpi_undecided_30d [data-kpi="undecided30d"]', String(s.undecided30d));
+    setText(root,'#kpi_undecided_30d [data-kpi="expiring30d"]', String(s.expiring30d));
+    var undecRate = (s.expiring30d>0) ? (s.undecided30d/s.expiring30d) : 0;
+    classAs(document.getElementById('kpi_undecided_30d'), undecRate >= 0.40 ? 'red' : 'neutral');
+    var undecTile = document.getElementById('kpi_undecided_30d');
+    if (undecTile){
+      undecTile.onclick = function(){ if (typeof showTab==='function') showTab('renewals'); };
+    }
+
+    setText(root,'#kpi_velocity_7d [data-kpi="approvals7d"]', String(s.approvals7d));
+    setText(root,'#kpi_velocity_7d [data-kpi="convPct"]', (s.convToMoveIn*100).toFixed(0)+'%');
+    setText(root,'#kpi_velocity_7d [data-kpi="pacingPP"]', __signedPctVal(s.pacingPP, 1));
+    var helps = (s.gapPP>0 && s.pacingPP>0) || (s.gapPP<=0 && s.pacingPP>=0);
+    classAs(document.getElementById('kpi_velocity_7d'), helps ? 'green' : 'red');
+
+    var struggling = Array.isArray(s.strugglingFPs) ? s.strugglingFPs.filter(function(fp){
+      return typeof fp.trendingOcc==='number' && fp.trendingOcc < s.targetOcc;
+    }) : [];
+    setText(root,'#alert_struggling_fps [data-kpi="strugglingCount"]', String(struggling.length));
+    var listFP = root.querySelector('[data-list="fps"]');
+    if(listFP){
+      listFP.innerHTML = '';
+      var top = struggling.slice(0,5);
+      if(!top.length){
+        var li = document.createElement('li'); li.className='alert-item';
+        li.innerHTML = '<span>All clear</span><span><small>—</small></span>';
+        listFP.appendChild(li);
+      } else {
+        top.forEach(function(fp){
+          var gapPPv = (s.targetOcc - (fp.trendingOcc||0))*100;
+          var need = (s.totalUnits>0 && gapPPv>0) ? Math.ceil(s.totalUnits*gapPPv/100) : 0;
+          var li = document.createElement('li'); li.className='alert-item';
+          li.innerHTML = `<span><strong>${fp.code||fp.floorplan||'—'}</strong> — ${((fp.trendingOcc||0)*100).toFixed(1)}% <small>(${gapPPv.toFixed(1)}%)</small></span><span><small>Need +${need} homes</small></span>`;
+          li.style.cursor='pointer';
+          li.onclick = function(){ if(typeof showTab==='function') showTab('newPricing'); };
+          listFP.appendChild(li);
+        });
+      }
+    }
+
+    var stale = Array.isArray(s.staleUnits) ? s.staleUnits.slice(0,5) : [];
+    setText(root,'#alert_stale_units [data-kpi="staleCount"]', String(Array.isArray(s.staleUnits)?s.staleUnits.length:0));
+    var listStale = root.querySelector('[data-list="stale"]');
+    if(listStale){
+      listStale.innerHTML = '';
+      if(!stale.length){
+        var li2 = document.createElement('li'); li2.className='alert-item';
+        li2.innerHTML = '<span>None</span><span><small>—</small></span>';
+        listStale.appendChild(li2);
+      } else {
+        stale.forEach(function(u){
+          var fp = u.fp || u.floorplan || '';
+          var days = u.days || u.vacantDays || 0;
+          var price = (typeof u.fpPrice==='number') ? u.fpPrice : (u.price || null);
+          var right = (price!=null) ? (`<small>FP $${Math.round(price)}</small>`) : '<small></small>';
+          var li3 = document.createElement('li'); li3.className='alert-item';
+          li3.innerHTML = `<span><strong>${u.unit || u.UnitID || '—'}</strong> (${fp}) — ${days}d</span><span>${right}</span>`;
+          li3.style.cursor='pointer';
+          li3.onclick = function(){ if(typeof showTab==='function') showTab('newPricing'); };
+          listStale.appendChild(li3);
+        });
+      }
+    }
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', paintStatus45);
+  } else {
+    setTimeout(paintStatus45, 0);
+  }
+  window.repaintStatus45 = paintStatus45;
+})();
+</script>
+
+<script>
+(function(){
+  // Add signed percent formatter (e.g., +3.0%)
+  function signedPctVal(x, d=1){ return (x>=0?'+':'') + (Number(x)||0).toFixed(d) + '%'; }
+  window.__signedPctVal = signedPctVal; // optional global
+})();
+</script>
+
+<script>
+// Carry-Forward Mode functionality
+(function() {
+  function updateCarryForwardStatus() {
+    const statusEl = document.getElementById('carryForwardStatus');
+    const infoEl = document.getElementById('carryForwardInfo');
+    const detailsEl = document.getElementById('carryForwardDetails');
+    
+    if (!statusEl || !infoEl || !detailsEl) return;
+    
+    try {
+      const stored = window.loadCarryForwardBaselines && window.loadCarryForwardBaselines();
+      
+      if (stored && stored.fpBaselines) {
+        statusEl.textContent = 'Active';
+        statusEl.style.background = '#059669';
+        statusEl.style.color = 'white';
+        
+        infoEl.style.display = 'block';
+        
+        const fpCount = Object.keys(stored.fpBaselines).length;
+        const lastRun = new Date(stored.at).toLocaleString();
+        
+        detailsEl.innerHTML = `
+          <div>Floorplans: ${fpCount}</div>
+          <div>Last run: ${lastRun}</div>
+          <div>Scenario: ${stored.scenario || 'Default'}</div>
+        `;
+      } else {
+        statusEl.textContent = 'Inactive';
+        statusEl.style.background = '#6b7280';
+        statusEl.style.color = 'white';
+        
+        infoEl.style.display = 'none';
+      }
+    } catch (e) {
+      console.warn('[RM] Failed to update carry-forward status:', e);
+      statusEl.textContent = 'Error';
+      statusEl.style.background = '#dc2626';
+      statusEl.style.color = 'white';
+    }
+  }
+  
+  function initCarryForwardUI() {
+    const resetBtn = document.getElementById('resetCarryForwardBtn');
+    
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function() {
+        if (confirm('Reset carry-forward baselines to seed values? This will clear all saved baseline data.')) {
+          try {
+            if (window.resetCarryForwardBaselines) {
+              window.resetCarryForwardBaselines();
+              updateCarryForwardStatus();
+              
+              // Show success message
+              const statusEl = document.getElementById('carryForwardStatus');
+              if (statusEl) {
+                const originalText = statusEl.textContent;
+                statusEl.textContent = 'Reset!';
+                statusEl.style.background = '#059669';
+                setTimeout(() => {
+                  statusEl.textContent = originalText;
+                  updateCarryForwardStatus();
+                }, 2000);
+              }
+            }
+          } catch (e) {
+            console.error('[RM] Failed to reset carry-forward:', e);
+            alert('Failed to reset carry-forward baselines. Check console for details.');
+          }
+        }
+      });
+    }
+    
+    // Update status on page load
+    updateCarryForwardStatus();
+    
+    // Update status when switching to Settings tab
+    const settingsTab = document.querySelector('[data-tab="settings"]');
+    if (settingsTab) {
+      settingsTab.addEventListener('click', function() {
+        setTimeout(updateCarryForwardStatus, 100);
+      });
+    }
+  }
+  
+  // Initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCarryForwardUI);
+  } else {
+    initCarryForwardUI();
+  }
+})();
+</script>
+
+
+</body>
+</html>
+
