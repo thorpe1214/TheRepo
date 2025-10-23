@@ -242,12 +242,63 @@ body[data-active-tab="home"] .home-only{ display:block; }
               #seasonalityTotal.ok { color: inherit; border-color:#334155; }
               #seasonalityTotal.bad { color:#ef4444; border-color:#ef4444; }
 
-/* Unit detail overlay card */
-.unit-detail-box{position:relative;}
-.unit-detail-box .udb-card{position:absolute; right:0; top:0; z-index:30; background:#12151c; border:1px solid #2a2f3a; border-radius:10px; box-shadow:0 10px 35px rgba(0,0,0,.45); width:min(680px, 95%);} 
-.unit-detail-box.hidden{display:none!important;}
-.udb-header{display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid #2a2f3a;}
-.udb-title{font-weight:600;}
-.udb-body{padding:8px 12px 12px 12px; max-height:60vh; overflow:auto;}
-.btn-icon{background:transparent; border:1px solid #2a2f3a; border-radius:8px; padding:2px 6px; color:#cfd6e6; cursor:pointer;}
-.btn-icon:hover{border-color:#5b6784; color:#fff;}
+/* Unit detail inline accordion */
+.unit-detail-row {
+  background: #1a1e2e;
+}
+
+.unit-detail-row td {
+  padding: 0 !important;
+  border-top: 1px solid #2a3f5f;
+  border-bottom: 1px solid #2a3f5f;
+}
+
+.inline-unit-detail-content {
+  padding: 16px;
+  background: linear-gradient(to bottom, #1a1e2e 0%, #141824 100%);
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.unit-terms-section h4 {
+  font-size: 14px;
+  margin: 0 0 8px;
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.unit-expand {
+  background: transparent;
+  border: 1px solid #2a2f3a;
+  border-radius: 8px;
+  padding: 2px 6px;
+  color: #cfd6e6;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.unit-expand:hover {
+  border-color: #5b6784;
+  color: #fff;
+}
+
+.unit-expand[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.unit-expand:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+}

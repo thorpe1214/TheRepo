@@ -532,54 +532,43 @@
         window.__npUnitsState.page = Math.min(pages, (window.__npUnitsState.page || 1) + 1);
         window.__renderUnitPricingSection();
       };
-    // Detail box wiring (overlay) and builder
-    // Ensure detail container exists once
-    (function ensureDetailBox() {
-      const hostBox = document.getElementById('unitDetailBox');
-      if (hostBox) return;
-      const box = document.createElement('div');
-      box.id = 'unitDetailBox';
-      box.className = 'unit-detail-box hidden';
-      box.setAttribute('role', 'dialog');
-      box.setAttribute('aria-modal', 'true');
-      box.setAttribute('aria-labelledby', 'udbTitle');
-      box.innerHTML =
-        '<div class="udb-card"><div class="udb-header"><div id="udbTitle" class="udb-title"></div><button id="udbClose" class="btn-icon" aria-label="Close">✕</button></div><div class="udb-body"></div></div>';
-      const sec = document.getElementById('unitPricingSection');
-      if (sec) sec.appendChild(box);
-      const closer = box.querySelector('#udbClose');
-      if (closer && !closer.__wired) {
-        closer.__wired = true;
-        closer.addEventListener('click', closeUnitDetail);
-      }
-      if (!window.__npDetailEsc) {
-        window.__npDetailEsc = true;
-        document.addEventListener('keydown', e => {
-          if (e.key === 'Escape') closeUnitDetail();
-        });
-      }
-    })();
-
-    // Close any expanded details on re-render
-    closeUnitDetail();
-    // Wire expand buttons (click + keyboard) - using event delegation
+    // Close any expanded inline details on re-render
+    closeInlineUnitDetail();
+    
+    // Wire expand buttons (click + keyboard) - using event delegation for inline accordion
     const unitSection = document.getElementById('unitPricingSection');
-    if (unitSection && !unitSection.__wired) {
-      unitSection.__wired = true;
+    if (unitSection && !unitSection.__wiredInline) {
+      unitSection.__wiredInline = true;
+      
+      // Click handler
       unitSection.addEventListener('click', e => {
         const btn = e.target.closest('.unit-expand');
         if (btn) {
           const unitId = btn.getAttribute('data-unit');
-          if (unitId) openUnitDetail(unitId);
+          if (unitId) toggleInlineUnitDetail(unitId);
         }
       });
+      
+      // Keyboard handler
       unitSection.addEventListener('keydown', e => {
         if (e.key === 'Enter' || e.key === ' ') {
           const btn = e.target.closest('.unit-expand');
           if (btn) {
             e.preventDefault();
             const unitId = btn.getAttribute('data-unit');
-            if (unitId) openUnitDetail(unitId);
+            if (unitId) toggleInlineUnitDetail(unitId);
+          }
+        }
+        
+        // Escape key closes inline detail when focused inside
+        if (e.key === 'Escape') {
+          const detailRow = e.target.closest('.unit-detail-row');
+          if (detailRow) {
+            // Find the associated expand button and close
+            const detailId = detailRow.id;
+            const expandBtn = document.querySelector(`[aria-controls="${detailId}"]`);
+            closeInlineUnitDetail();
+            if (expandBtn) expandBtn.focus();
           }
         }
       });
@@ -699,103 +688,249 @@
     };
   }
 
-  // Helper: close unit detail
-  function closeUnitDetail() {
-    const box = document.getElementById('unitDetailBox');
-    if (box) box.classList.add('hidden');
+  /**
+   * Compute unit baseline: floorplan baseline + amenity adjustment
+   * @param {string} fpCode - Floorplan code
+   * @param {number} amenityAdj - Amenity adjustment (can be +/-)
+   * @param {number} referenceTerm - Reference term in months (default 14)
+   * @returns {object} {baseline, fpBaseline, amenityAdj, referenceTerm}
+   */
+  function computeUnitBaseline(fpCode, amenityAdj, referenceTerm) {
+    const fpIdx = buildFpIndex();
+    const fp = fpIdx.get(fpCode);
+    
+    if (!fp || !isFinite(fp.referenceBase)) {
+      return { baseline: 0, fpBaseline: 0, amenityAdj: 0, referenceTerm: referenceTerm || 14 };
+    }
+    
+    const fpBaseline = Number(fp.referenceBase) || 0;
+    const amenity = Number(amenityAdj) || 0;
+    const baseline = Math.max(0, fpBaseline + amenity);
+    
+    return {
+      baseline,
+      fpBaseline,
+      amenityAdj: amenity,
+      referenceTerm: fp.referenceTerm || referenceTerm || 14,
+    };
+  }
+
+  /**
+   * Compute unit prices for all lease terms (2-14 months)
+   * Applies short-term premium, over-cap premium, and seasonality
+   * @param {number} unitBaseline - Unit baseline (FP base + amenity)
+   * @param {number} referenceTerm - Reference term (usually 14)
+   * @returns {array} Array of {term, price, notes} objects
+   */
+  function computeUnitTermPrices(unitBaseline, referenceTerm) {
+    const terms = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+    const results = [];
+    
+    for (const term of terms) {
+      const longTerm = term >= 10;
+      
+      // Calculate end date for this term
+      const end = new Date();
+      end.setMonth(end.getMonth() + term);
+      const monthIdx = end.getMonth();
+      
+      // Short-term premium (2-9 months)
+      const shortPct = longTerm ? 0 : (shortTermAdj(100, term) / 100 - 1);
+      
+      // Over-cap calculation (terms beyond reference)
+      const isOverCap = term > referenceTerm;
+      const overCapPct = isOverCap ? 0.02 : 0; // 2% premium for over-cap terms
+      
+      // Seasonality (only if positive and over-cap)
+      const seasonalityMult = getSeasonalityMultiplier(monthIdx);
+      const seasonalityPct = seasonalityMult - 1;
+      const seasonalUplift = seasonalityPct > 0 && isOverCap ? seasonalityPct : 0;
+      
+      // Calculate final price
+      let price = unitBaseline * (1 + shortPct + overCapPct + seasonalUplift);
+      price = Math.max(0, Math.round(price));
+      
+      // Build notes
+      const parts = [];
+      if (shortPct !== 0) {
+        parts.push(`Short-term: ${(shortPct * 100).toFixed(1)}%`);
+      }
+      if (overCapPct !== 0) {
+        parts.push(`Over-cap: +${(overCapPct * 100).toFixed(1)}%`);
+      }
+      if (seasonalUplift !== 0) {
+        parts.push(`Seasonal: +${(seasonalUplift * 100).toFixed(1)}%`);
+      }
+      
+      const totalPct = (price / Math.max(1, unitBaseline) - 1) * 100;
+      const notes = parts.length > 0 
+        ? `${parts.join(' + ')} = ${totalPct >= 0 ? '+' : ''}${totalPct.toFixed(1)}%`
+        : 'Base price';
+      
+      results.push({
+        term,
+        price,
+        notes,
+      });
+    }
+    
+    return results;
+  }
+
+  /**
+   * Render unit term pricing table
+   * @param {HTMLElement} container - Container element to render into
+   * @param {object} unit - Unit data object
+   * @param {string} fpCode - Floorplan code
+   */
+  function renderUnitTermTable(container, unit, fpCode) {
+    if (!container || !unit) return;
+    
+    // Get unit baseline data
+    const amenityAdj = Number(unit.amenity_adj) || 0;
+    const baselineData = computeUnitBaseline(fpCode, amenityAdj, 14);
+    
+    if (!baselineData.baseline || baselineData.baseline === 0) {
+      container.innerHTML = '<div class="note">No baseline available for this unit.</div>';
+      return;
+    }
+    
+    // Compute term prices
+    const termPrices = computeUnitTermPrices(baselineData.baseline, baselineData.referenceTerm);
+    
+    // Build table HTML
+    let html = '<div class="unit-terms-section">';
+    html += `<h4>Term Pricing</h4>`;
+    html += `<div class="note" style="margin-bottom: 8px;">`;
+    html += `Unit baseline: ${formatMoney(baselineData.baseline)} `;
+    html += `(FP: ${formatMoney(baselineData.fpBaseline)}`;
+    if (amenityAdj !== 0) {
+      const sign = amenityAdj > 0 ? '+' : '';
+      html += ` ${sign}${formatMoney(amenityAdj)} amenity`;
+    }
+    html += `)`;
+    html += `</div>`;
+    
+    html += '<table class="basic" style="width:100%">';
+    html += '<thead><tr><th>Term</th><th>Price</th><th style="text-align:right;">Notes</th></tr></thead>';
+    html += '<tbody>';
+    
+    termPrices.forEach(t => {
+      html += `<tr>`;
+      html += `<td>${t.term} mo</td>`;
+      html += `<td>${formatMoney(t.price)}</td>`;
+      html += `<td style="text-align:right;opacity:0.9"><small>${__np_escape(t.notes)}</small></td>`;
+      html += `</tr>`;
+    });
+    
+    html += '</tbody></table>';
+    html += '</div>';
+    
+    container.innerHTML = html;
+  }
+
+  /**
+   * Mount inline unit panel (accordion style)
+   * @param {HTMLElement} parentEl - Parent element to mount into
+   * @param {object} unit - Unit data object
+   * @param {string} fpCode - Floorplan code
+   */
+  function mountInlineUnitPanel(parentEl, unit, fpCode) {
+    if (!parentEl || !unit) return;
+    
+    // Clear any existing content
+    parentEl.innerHTML = '';
+    
+    // Create container for term pricing
+    const container = document.createElement('div');
+    container.className = 'inline-unit-detail-content';
+    container.style.padding = '16px';
+    container.style.backgroundColor = '#f8f9fa';
+    
+    // Render term pricing table
+    renderUnitTermTable(container, unit, fpCode);
+    
+    parentEl.appendChild(container);
+  }
+
+  // Helper: close all inline unit details
+  function closeInlineUnitDetail() {
+    // Remove any existing inline detail rows
+    document.querySelectorAll('.unit-detail-row').forEach(row => row.remove());
     
     // Reset all expand button states
     document.querySelectorAll('.unit-expand').forEach(btn => {
       btn.setAttribute('aria-expanded', 'false');
       btn.innerHTML = '▼';
     });
+    
+    // Track closed state
+    window.__currentOpenUnit = null;
   }
 
-  // Helper: open unit detail
-  function openUnitDetail(unitId) {
-    const box = document.getElementById('unitDetailBox');
-    if (!box) return;
-    
-    // Find the unit data
-    const unitRow = document.querySelector(`tr[data-key*="${unitId}"]`);
+  // Helper: toggle inline unit detail (accordion style)
+  function toggleInlineUnitDetail(unitId) {
+    // Find the unit row
+    const unitRow = document.querySelector(`tr.unit-row[data-key*="${unitId}"]`);
     if (!unitRow) return;
     
-    // Get unit data from row attributes
-    const base = unitRow.getAttribute('data-base');
-    const current = unitRow.getAttribute('data-cur');
-    const fp = unitRow.getAttribute('data-fp');
+    // Get the expand button
+    const expandBtn = unitRow.querySelector('.unit-expand');
+    if (!expandBtn) return;
     
-    // Get unit details from the row cells
-    const cells = unitRow.querySelectorAll('td');
-    const unit = cells[0]?.textContent || unitId;
-    const status = cells[2]?.textContent || 'Unknown';
-    const avail = cells[3]?.textContent || '—';
-    const currentRent = cells[4]?.textContent || '—';
-    const proposed = cells[5]?.textContent || '—';
-    const delta = cells[6]?.textContent || '—';
-    const deltaPct = cells[7]?.textContent || '—';
-    const amenities = cells[8]?.textContent || '—';
+    // Check if this unit is already open
+    const isCurrentlyOpen = window.__currentOpenUnit === unitId;
     
-    // Update the detail box content
-    const titleEl = document.getElementById('udbTitle');
-    const bodyEl = box.querySelector('.udb-body');
+    // Close any open unit detail
+    closeInlineUnitDetail();
     
-    if (titleEl) titleEl.textContent = `Unit ${unit} Details`;
-    
-    if (bodyEl) {
-      bodyEl.innerHTML = `
-        <div class="unit-detail-content">
-          <div class="detail-grid">
-            <div class="detail-item">
-              <label>Unit:</label>
-              <span>${unit}</span>
-            </div>
-            <div class="detail-item">
-              <label>Floorplan:</label>
-              <span>${fp}</span>
-            </div>
-            <div class="detail-item">
-              <label>Status:</label>
-              <span>${status}</span>
-            </div>
-            <div class="detail-item">
-              <label>Availability:</label>
-              <span>${avail}</span>
-            </div>
-            <div class="detail-item">
-              <label>Current Rent:</label>
-              <span>${currentRent}</span>
-            </div>
-            <div class="detail-item">
-              <label>Proposed Rent:</label>
-              <span>${proposed}</span>
-            </div>
-            <div class="detail-item">
-              <label>Delta:</label>
-              <span>${delta} (${deltaPct})</span>
-            </div>
-            <div class="detail-item">
-              <label>Amenities:</label>
-              <span>${amenities}</span>
-            </div>
-          </div>
-        </div>
-      `;
+    // If this was already open, just close it (toggle off)
+    if (isCurrentlyOpen) {
+      // Focus back on the button
+      if (expandBtn) expandBtn.focus();
+      return;
     }
     
-    // Show the detail box
-    box.classList.remove('hidden');
+    // Get unit data
+    const fp = unitRow.getAttribute('data-fp');
+    const unitData = (window.__npUnitsFiltered || []).find(u => String(u.unit) === unitId);
     
-    // Update the expand button state
-    const expandBtn = document.querySelector(`.unit-expand[data-unit="${unitId}"]`);
+    if (!unitData || !fp) return;
+    
+    // Create inline detail row
+    const detailRow = document.createElement('tr');
+    detailRow.className = 'unit-detail-row';
+    const detailId = `unit-detail-${unitId}`;
+    detailRow.id = detailId;
+    
+    // Create cell that spans all columns
+    const detailCell = document.createElement('td');
+    detailCell.setAttribute('colspan', '100');
+    detailCell.setAttribute('role', 'region');
+    detailCell.setAttribute('aria-label', `Unit ${unitId} term pricing details`);
+    
+    // Insert after the unit row
+    unitRow.parentNode.insertBefore(detailRow, unitRow.nextSibling);
+    detailRow.appendChild(detailCell);
+    
+    // Mount the inline panel
+    mountInlineUnitPanel(detailCell, unitData, fp);
+    
+    // Update button state
     if (expandBtn) {
       expandBtn.setAttribute('aria-expanded', 'true');
+      expandBtn.setAttribute('aria-controls', detailId);
       expandBtn.innerHTML = '▲';
     }
     
-    // Focus the close button for accessibility
-    const closeBtn = box.querySelector('#udbClose');
-    if (closeBtn) closeBtn.focus();
+    // Track open state
+    window.__currentOpenUnit = unitId;
+    
+    // Focus management - move focus into the detail panel
+    const firstFocusable = detailCell.querySelector('h4, button, a, input, [tabindex]:not([tabindex="-1"])');
+    if (firstFocusable) {
+      setTimeout(() => firstFocusable.focus(), 100);
+    }
   }
 
   // Expose functions to window
@@ -803,6 +938,12 @@
   window.buildUnits = buildUnits;
   window.buildUnitsAll = buildUnitsAll;
   window.__renderUnitPricingSection = renderUnitPricingSection;
+  window.computeUnitBaseline = computeUnitBaseline;
+  window.computeUnitTermPrices = computeUnitTermPrices;
+  window.renderUnitTermTable = renderUnitTermTable;
+  window.mountInlineUnitPanel = mountInlineUnitPanel;
+  window.toggleInlineUnitDetail = toggleInlineUnitDetail;
+  window.closeInlineUnitDetail = closeInlineUnitDetail;
 
   // Development boundary guards
   if (window.__RM_DEV_GUARDS) {

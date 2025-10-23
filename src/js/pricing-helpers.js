@@ -131,4 +131,24 @@
     return isFinite(n) ? (n >= 0 ? '+' : '') + Math.round(n * 10) / 10 + '%' : '—';
   }
   window.formatPct = formatPct;
+
+  // Short-term premium calculation (2-9 mo lease terms)
+  // Returns adjusted base with premium applied for short terms
+  function shortTermAdj(base, term) {
+    if (term >= 10) return base;
+    const start = 0.08,
+      taper = 0.01;
+    const extra = Math.max(0, start - (term - 2) * taper);
+    return base * (1 + extra);
+  }
+  window.shortTermAdj = shortTermAdj;
+
+  // Get seasonality multiplier for a given month (0-11)
+  function getSeasonalityMultiplier(monthIndex) {
+    const a = window.__seasonalityArray__ || [];
+    const v = Number(a[monthIndex]);
+    const m = Number.isFinite(v) ? v : 1;
+    return Math.min(1.2, Math.max(0.8, m));
+  }
+  window.getSeasonalityMultiplier = getSeasonalityMultiplier;
 })();
