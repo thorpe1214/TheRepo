@@ -186,6 +186,8 @@ h2 { margin-bottom: 12px; letter-spacing: .02em; }
   .status45 .pill { display:inline-block; font-size:11px; padding:2px 8px; border-radius:9999px; margin-left:6px; vertical-align:middle; }
   .status45 .green { color:#10b981; background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.35); }
   .status45 .red   { color:#ef4444; background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.35); }
+  .status45 .yellow { color:#f59e0b; background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.35); }
+  .status45 .neutral { color:#94a3b8; background:rgba(148,163,184,.12); border:1px solid rgba(148,163,184,.35); }
   .status45 .amber { color:#f59e0b; background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.35); }
   .status45 .neutral { color:#e2e8f0; background:#0f172a; border:1px solid #334155; }
 

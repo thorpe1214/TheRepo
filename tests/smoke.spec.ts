@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import * as path from 'path';
 
-const CURRENT_STEP = 'steps/Step 99 — Carry-forward mode for pricing evolution.html';
+const CURRENT_STEP = 'steps/Step 103 — Enhanced dashboard (rent roll only metrics).html';
 const SAMPLE_CSV = 'data/sample_rent_roll_300_units_statuses.csv';
 
 test.describe('Revenue Management System - Smoke Tests', () => {
