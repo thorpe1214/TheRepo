@@ -93,6 +93,16 @@
   }
   window.vacancyAgeDays = vacancyAgeDays;
 
+  // Vacancy special percentage based on days vacant
+  function vacancySpecialPct(vacantDays) {
+    const days = Number(vacantDays) || 0;
+    if (days >= 90) return 15; // 15% off for 90+ days
+    if (days >= 60) return 10;  // 10% off for 60+ days
+    if (days >= 30) return 5;   // 5% off for 30+ days
+    return 0;                   // No special for <30 days
+  }
+  window.vacancySpecialPct = vacancySpecialPct;
+
   function onNoticeAvailDate(u) {
     if (unitStatus(u) !== 'On Notice') return null;
     return u.available_date ? new Date(u.available_date) : null;
