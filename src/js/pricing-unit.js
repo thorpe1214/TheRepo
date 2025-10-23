@@ -438,15 +438,35 @@
       html += `<div class="actions" style="justify-content:space-between"><button class="btn xs" aria-expanded="true" data-coll="${btnId}">FP ${fp.code} — ${list.length} available</button><div class="pill">Ref: ${formatMoney(fp.referenceBase)} (${fp.referenceTerm} mo)</div></div>`;
       html += `<div id="${btnId}" style="margin-top:6px">`;
       html +=
-        '<div style="overflow:auto"><table class="basic" style="width:100%"><thead><tr><th>Unit</th><th>FP</th><th>Status</th><th>Avail / Vacant Age</th><th>Current</th><th>Proposed (ref)</th><th>Δ $</th><th>Δ %</th><th>Amenities</th><th class="ta-right w-8">&nbsp;</th></tr></thead><tbody>';
+        '<div style="overflow:auto"><table class="basic" style="width:100%"><thead><tr><th>Unit</th><th>FP</th><th>Status</th><th>Avail / Vacant Age</th><th>Previous</th><th>Proposed (final)</th><th>Δ $</th><th>Δ %</th><th>Amenities</th><th class="ta-right w-8">&nbsp;</th></tr></thead><tbody>';
       list.forEach(u => {
         const st = unitStatus(u);
         const cur = Number(u.current) || NaN;
         const refPrice = Number(fp.referenceBase) || NaN;
         const amen = Number(u.amenity_adj || 0);
         const proposedWithAmen = Math.max(0, (isFinite(refPrice) ? refPrice : 0) + amen);
-        const d$ = isFinite(cur) && isFinite(proposedWithAmen) ? proposedWithAmen - cur : NaN;
-        const dP = isFinite(cur) && cur > 0 ? (d$ / cur) * 100 : NaN;
+        
+        // Apply vacancy age discount for vacant units
+        let finalProposedPrice = proposedWithAmen;
+        let vacancyDiscount = 0;
+        let vacancyDiscountPct = 0;
+        let isDiscounted = false;
+        
+        if (st === 'Vacant') {
+          const vacantDays = vacancyAgeDays(u, new Date());
+          vacancyDiscountPct = vacancyAgeDiscount(vacantDays);
+          if (vacancyDiscountPct > 0) {
+            vacancyDiscount = (proposedWithAmen * vacancyDiscountPct) / 100;
+            finalProposedPrice = Math.max(0, proposedWithAmen - vacancyDiscount);
+            isDiscounted = true;
+          }
+        }
+        
+        // Use carry-forward baseline as "Previous" if available, otherwise use current rent
+        const carryForwardBaseline = getCarryForwardBaseline(fp.code);
+        const previousPrice = carryForwardBaseline !== null ? carryForwardBaseline : (isFinite(cur) ? cur : refPrice);
+        const d$ = isFinite(previousPrice) && isFinite(finalProposedPrice) ? finalProposedPrice - previousPrice : NaN;
+        const dP = isFinite(previousPrice) && previousPrice > 0 ? (d$ / previousPrice) * 100 : NaN;
         let availTxt = '—';
         if (st === 'Vacant') {
           const age = vacancyAgeDays(u, today);
@@ -460,11 +480,24 @@
           const sign = amen > 0 ? '+' : '-';
           amenCell = sign + formatMoney(Math.abs(amen));
         }
+        
+        // Format proposed price with vacancy age discount styling
+        let proposedPriceDisplay = '';
+        if (isFinite(finalProposedPrice)) {
+          if (isDiscounted) {
+            proposedPriceDisplay = `<span style="color: #dc2626; font-weight: 600;">${formatMoney(finalProposedPrice)} 🏷️</span><br><small style="color: #6b7280;">Ref: ${formatMoney(proposedWithAmen)} (-${vacancyDiscountPct.toFixed(1)}%)</small>`;
+          } else {
+            proposedPriceDisplay = formatMoney(finalProposedPrice);
+          }
+        } else {
+          proposedPriceDisplay = '—';
+        }
+        
         const key = `${fp.code}::${String(u.unit || '')}`;
         html +=
-          `<tr class="unit-row" data-key="${key}" data-base="${isFinite(proposedWithAmen) ? proposedWithAmen : ''}" data-cur="${isFinite(cur) ? cur : ''}" data-fp="${fp.code}">` +
+          `<tr class="unit-row" data-key="${key}" data-base="${isFinite(finalProposedPrice) ? finalProposedPrice : ''}" data-cur="${isFinite(previousPrice) ? previousPrice : ''}" data-fp="${fp.code}">` +
           `<td>${__np_escape(String(u.unit || ''))}</td>` +
-          `<td>${fp.code}</td><td>${st}</td><td>${availTxt}</td><td>${isFinite(cur) ? formatMoney(cur) : '—'}</td><td>${isFinite(proposedWithAmen) ? formatMoney(proposedWithAmen) : '—'}</td><td>${isFinite(d$) ? formatMoney(d$) : '—'}</td><td>${isFinite(dP) ? formatPct(dP) : '—'}</td><td>${amenCell}</td></tr>`;
+          `<td>${fp.code}</td><td>${st}</td><td>${availTxt}</td><td>${isFinite(previousPrice) ? formatMoney(previousPrice) : '—'}</td><td>${proposedPriceDisplay}</td><td>${isFinite(d$) ? formatMoney(d$) : '—'}</td><td>${isFinite(dP) ? formatPct(dP) : '—'}</td><td>${amenCell}</td></tr>`;
         // Append right-side toggle
         html = html.replace(
           /<\/tr>$/,
@@ -717,14 +750,22 @@
 
   /**
    * Compute unit prices for all lease terms (2-14 months)
-   * Applies short-term premium, over-cap premium, and seasonality
+   * Applies short-term premium, over-cap premium, seasonality, and vacancy age discount
    * @param {number} unitBaseline - Unit baseline (FP base + amenity)
    * @param {number} referenceTerm - Reference term (usually 14)
+   * @param {object} unit - Unit object for vacancy age calculation
    * @returns {array} Array of {term, price, notes} objects
    */
-  function computeUnitTermPrices(unitBaseline, referenceTerm) {
+  function computeUnitTermPrices(unitBaseline, referenceTerm, unit = null) {
     const terms = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
     const results = [];
+    
+    // Calculate vacancy age discount if unit is provided
+    let vacancyAgeDiscountPct = 0;
+    if (unit && unitStatus(unit) === 'Vacant') {
+      const vacantDays = vacancyAgeDays(unit, new Date());
+      vacancyAgeDiscountPct = vacancyAgeDiscount(vacantDays) / 100; // Convert percentage to decimal
+    }
     
     for (const term of terms) {
       const longTerm = term >= 10;
@@ -746,8 +787,8 @@
       const seasonalityPct = seasonalityMult - 1;
       const seasonalUplift = seasonalityPct > 0 && isOverCap ? seasonalityPct : 0;
       
-      // Calculate final price
-      let price = unitBaseline * (1 + shortPct + overCapPct + seasonalUplift);
+      // Calculate final price (apply vacancy age discount)
+      let price = unitBaseline * (1 + shortPct + overCapPct + seasonalUplift - vacancyAgeDiscountPct);
       price = Math.max(0, Math.round(price));
       
       // Build notes
@@ -760,6 +801,9 @@
       }
       if (seasonalUplift !== 0) {
         parts.push(`Seasonal: +${(seasonalUplift * 100).toFixed(1)}%`);
+      }
+      if (vacancyAgeDiscountPct !== 0) {
+        parts.push(`Vacancy age: -${(vacancyAgeDiscountPct * 100).toFixed(1)}%`);
       }
       
       const totalPct = (price / Math.max(1, unitBaseline) - 1) * 100;
@@ -796,7 +840,7 @@
     }
     
     // Compute term prices
-    const termPrices = computeUnitTermPrices(baselineData.baseline, baselineData.referenceTerm);
+    const termPrices = computeUnitTermPrices(baselineData.baseline, baselineData.referenceTerm, unit);
     
     // Build table HTML
     let html = '<div class="unit-terms-section">';
@@ -809,6 +853,15 @@
       html += ` ${sign}${formatMoney(amenityAdj)} amenity`;
     }
     html += `)`;
+    
+    // Add vacancy age discount information if applicable
+    if (unit && unitStatus(unit) === 'Vacant') {
+      const vacantDays = vacancyAgeDays(unit, new Date());
+      const vacancyDiscount = vacancyAgeDiscount(vacantDays);
+      if (vacancyDiscount > 0) {
+        html += `<br><small style="color: #dc2626;">Vacancy age discount: ${vacancyDiscount.toFixed(1)}% (${vacantDays} days vacant)</small>`;
+      }
+    }
     html += `</div>`;
     
     html += '<table class="basic" style="width:100%">';

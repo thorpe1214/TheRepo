@@ -712,6 +712,7 @@
   window.startingRentForCode = startingRentForCode;
   window.resetCarryForwardBaselines = resetCarryForwardBaselines;
   window.loadCarryForwardBaselines = loadCarryForwardBaselines;
+  window.getCarryForwardBaseline = getCarryForwardBaseline;
 
   // Development boundary guards
   if (window.__RM_DEV_GUARDS) {

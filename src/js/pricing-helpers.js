@@ -103,6 +103,30 @@
   }
   window.vacancySpecialPct = vacancySpecialPct;
 
+  // Vacancy age pricing discount based on settings
+  function vacancyAgeDiscount(vacantDays) {
+    try {
+      const settings = JSON.parse(localStorage.getItem('vacancyAgeSettings') || '{}');
+      if (!settings.enabled) return 0;
+      
+      const days = Number(vacantDays) || 0;
+      if (days < 30) return 0; // No discount before 30 days
+      
+      const configs = {
+        minimal: { dailyRate: 0.1, maxDiscount: 5 },
+        medium: { dailyRate: 0.2, maxDiscount: 10 },
+        aggressive: { dailyRate: 0.3, maxDiscount: 15 }
+      };
+      
+      const config = configs[settings.intensity] || configs.medium;
+      const discount = Math.min(config.dailyRate * (days - 30), config.maxDiscount);
+      return Math.max(0, discount);
+    } catch (e) {
+      return 0; // Fallback to no discount on error
+    }
+  }
+  window.vacancyAgeDiscount = vacancyAgeDiscount;
+
   function onNoticeAvailDate(u) {
     if (unitStatus(u) !== 'On Notice') return null;
     return u.available_date ? new Date(u.available_date) : null;
