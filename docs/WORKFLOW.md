@@ -252,16 +252,16 @@ npm run smoke:mac
 # Or merge commit (if preserving detailed history)
 ```
 
-### 9. Tag Release
+### 9. Tag Release ⚠️ **MANDATORY**
 
-**After merging to main:**
+**After merging to main - THIS STEP IS REQUIRED:**
 ```bash
 # Pull latest main
 git checkout main
 git pull origin main
 
-# Tag with semantic version
-git tag -a v0.<NN> -m "Step <NN>: <short release notes>
+# Tag with semantic version (REQUIRED for every step)
+git tag -a v1.<NN> -m "Step <NN>: <short release notes>
 
 Features:
 - <Feature 1>
@@ -274,12 +274,18 @@ Testing:
 Changes:
 - See CHANGELOG.md for details"
 
-# Push tag to GitHub
+# Push tag to GitHub (REQUIRED)
 git push origin main --tags
 ```
 
+**⚠️ CRITICAL**: Every step MUST be tagged. This is not optional. Tags provide:
+- Clean rollback points
+- Version history
+- Stable checkpoints for testing
+- Professional release management
+
 **Versioning convention:**
-- `v0.<NN>` for Step releases (e.g., `v0.97`, `v0.98`)
+- `v1.<NN>` for Step releases (e.g., `v1.02`, `v1.03`)
 - `v1.0.0` for major stable releases
 - `v1.1.0` for minor feature releases
 - `v1.0.1` for patch/bug fix releases
@@ -319,10 +325,10 @@ git push origin feat/step-<NN>-<slug>
 
 # 7. Merge PR
 
-# 8. Tag release
+# 8. Tag release (MANDATORY - NO EXCEPTIONS)
 git checkout main
 git pull origin main
-git tag -a v0.<NN> -m "Step <NN>: <notes>"
+git tag -a v1.<NN> -m "Step <NN>: <notes>"
 git push origin main --tags
 ```
 
