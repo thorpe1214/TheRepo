@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import * as path from 'path';
 
-const CURRENT_STEP = 'steps/Step 103 — Enhanced dashboard (rent roll only metrics).html';
+const CURRENT_STEP = 'steps/Step 102 — Fix vacancy age display and update Current to Previous.html';
 const SAMPLE_CSV = 'data/sample_rent_roll_300_units_statuses.csv';
 
 test.describe('Revenue Management System - Smoke Tests', () => {

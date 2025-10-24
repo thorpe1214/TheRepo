@@ -24,7 +24,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added - Step 98: File structure cleanup
+### Rollback - October 24, 2025: Reset to Step 102
+- **Rollback Decision**: Reset development to Step 102 as clean checkpoint
+- **Current Baseline**: Step 102 — Fix vacancy age display and update Current to Previous
+- **Reason**: Clean slate for tomorrow's development session
+- **Status**: All documentation updated to reflect Step 102 as current baseline
+- **Git State**: Local repository reset to `v1.02` tag, remote remains at Step 103
+
+### Added - Step 103: Enhanced dashboard (rent roll only metrics) [ROLLED BACK]
+- **Dashboard Enhancement**: Cleaned up "Status at a Glance" dashboard with rent roll only metrics
+- **Current Occupancy**: Replaced "Revenue at Risk" with today's occupancy snapshot
+- **Pricing Changes**: Added summary of average base rent changes from yesterday to today
+- **Struggling Floorplans**: Shows floorplans below trending occupancy target
+- **Undecided Renewals**: Count of unsigned renewals expiring within 30 days
+- **Vacancy Age Alert**: Units vacant ≥30 days with configurable thresholds
+- **Color Coding**: Red/yellow/green indicators for occupancy and renewal urgency
+- **Click-Through Navigation**: Dashboard tiles link to relevant tabs (New Pricing, Renewals)
+- **Rent Roll Only**: All metrics derived solely from uploaded rent roll data
+- **No External Dependencies**: No competitor data, traffic, or leasing system integration
+
+### Added - Step 102: Fix vacancy age display and update Current to Previous
+- **Vacancy Age Display**: Fixed red text and flag display for discounted vacant units
+- **Column Update**: Changed "Current" column to "Previous" to reflect last run's rent
+- **Delta Recalculation**: Updated Δ $ and Δ % columns to compare Proposed vs Previous rent
+- **Carry-Forward Integration**: Uses carry-forward baseline as "Previous" when available
+- **Mathematical Transparency**: Shows reference rent and discount percentage for discounted units
+- **UI Consistency**: Ensured vacancy age discount styling appears correctly in unit pricing table
+- **Data Flow**: Fixed rendering logic to apply discounts during table generation
+
+### Added - Step 101: UI improvements for vacancy age pricing
+- **Default Tab Selection**: "Floorplan Pricing" sub-tab active by default when "New Pricing" selected
+- **Discounted Unit Display**: Vacant units with vacancy age discounts show:
+  - Red, bold text with 🏷️ flag for final proposed price
+  - Reference rent (before discount) in smaller gray text
+  - Discount percentage clearly displayed
+- **Visual Hierarchy**: Clear distinction between discounted and regular pricing
+- **User Experience**: Operators can immediately see which units have vacancy age discounts applied
+
+### Added - Step 100: Vacancy age pricing enhancement
+- **Vacancy Age Settings**: New settings card in Settings tab with:
+  - Enable/disable toggle for vacancy age pricing
+  - Intensity levels: Minimal (0.1%/day, max 5%), Medium (0.2%/day, max 10%), Aggressive (0.3%/day, max 15%)
+  - Dynamic examples showing discount calculations
+- **Unit-Level Discounts**: Progressive discounts for units vacant beyond 30 days
+- **Pricing Integration**: Discounts applied to final proposed rent for vacant units
+- **Local Persistence**: Settings saved to localStorage with proper error handling
+- **Mathematical Transparency**: Discount calculations visible in pricing breakdown
+- **Operator Control**: Complete control over vacancy age pricing activation and intensity
 - **Organized Repository Structure**: Moved files into logical folders for better organization
   - `/steps/` - All Step HTML files (Step 87 through Step 96+)
   - `/docs/` - All documentation (README, WORKFLOW, CONTRIBUTING, CHANGELOG, etc.)
