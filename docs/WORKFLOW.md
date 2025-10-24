@@ -145,7 +145,7 @@ git checkout -b feat/step-97-pr-policy-docs
 ### 2. Make Changes
 
 **Develop your Step incrementally:**
-1. Duplicate latest Step file (e.g., `cp "Step 96 — [old].html" "Step 97 — [new].html"`)
+1. Duplicate latest Step file (e.g., `cp "Step 102 — [old].html" "Step 103 — [new].html"`)
 2. Make targeted changes to achieve Step goal
 3. Update `CHANGELOG.md` under `[Unreleased]` section
 4. Test changes thoroughly
@@ -177,7 +177,7 @@ npm run smoke:mac  # Uses WebKit browser
 **Use conventional commit format:**
 ```bash
 git add .
-git commit -m "feat: Step 97 — Add branching + PR policy docs and templates"
+git commit -m "feat: Step 103 — Add enhanced dashboard with rent roll metrics"
 git push origin feat/step-97-pr-policy-docs
 ```
 
@@ -189,8 +189,8 @@ feat: Step <NN> — <short title>
 ```
 
 **Examples:**
-- `feat: Step 97 — Add branching + PR policy docs and templates`
-- `fix: Step 96 — Fix accordion focus restoration`
+- `feat: Step 103 — Add enhanced dashboard with rent roll metrics`
+- `fix: Step 102 — Fix vacancy age display and update Current to Previous`
 - `docs: Update ARCHITECTURE.md with data flow diagrams`
 
 **Using the PR template:**
@@ -295,7 +295,7 @@ git push origin main --tags
 **Create a GitHub Release for milestone Steps:**
 1. Navigate to GitHub repository → Releases → "Draft a new release"
 2. Select your tag (e.g., `v0.97`)
-3. Title: `Step 97 — Add branching + PR policy docs`
+3. Title: `Step 103 — Add enhanced dashboard with rent roll metrics`
 4. Description: Copy from CHANGELOG.md entry
 5. Attach Step HTML file as release asset
 6. Publish release

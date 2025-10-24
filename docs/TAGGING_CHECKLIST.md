@@ -52,12 +52,12 @@ git push origin main --tags
 ### 4. ✅ Verify Tag Created
 ```bash
 git tag -l | sort -V
-# Should show your new tag (e.g., v1.02, v1.03, etc.)
+# Should show your new tag (e.g., v1.02, v1.04, etc.)
 ```
 
 ## 🏷️ Versioning Convention
 
-- **`v1.<NN>`** for Step releases (e.g., `v1.02`, `v1.03`)
+- **`v1.<NN>`** for Step releases (e.g., `v1.02`, `v1.04`)
 - **`v1.0.0`** for major stable releases
 - **`v1.1.0`** for minor feature releases
 - **`v1.0.1`** for patch/bug fix releases
@@ -66,9 +66,9 @@ git tag -l | sort -V
 
 ```bash
 # Go to any previous step
-git checkout v1.02  # Step 102
-git checkout v0.97  # Step 97
-git checkout v0.96  # Step 96 (stable baseline)
+git checkout v1.02  # Step 102 (current baseline)
+git checkout v1.01  # Step 101 (previous)
+git checkout v1.00  # Step 100 (previous)
 
 # Return to current development
 git checkout main
@@ -85,16 +85,16 @@ git checkout main
    ```
 3. **Update this checklist** to prevent future occurrences
 
-## 📝 Example: Step 103
+## 📝 Example: Step 104
 
 ```bash
-# After completing Step 103
+# After completing Step 104
 git add .
-git commit -m "feat: Step 103 — Add export to Excel functionality"
+git commit -m "feat: Step 104 — Add export to Excel functionality"
 git push origin main
 
 # Create tag
-git tag -a v1.03 -m "Step 103: Add export to Excel functionality
+git tag -a v1.04 -m "Step 104: Add export to Excel functionality
 
 Features:
 - Excel export for pricing data
