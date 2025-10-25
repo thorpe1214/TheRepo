@@ -24,12 +24,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Rollback - October 24, 2025: Reset to Step 102
+## [1.04.0] - 2025-10-25
+
+### Added - Step 104: Seeded single-property mode (v1.04)
+- **Seeded Property Setup**: Property configuration and floorplan mappings automatically load when localStorage is empty
+- **Deterministic Testing**: Provides consistent Thorpe Gardens setup for AI agents and operators
+- **Automatic CSV Mapping**: Floorplan labels from CSV automatically mapped to internal codes on upload
+- **No Confirm Overlay**: Seamless CSV upload → auto-map → auto-confirm flow (no manual confirmation needed)
+- **Dashboard Stats Integration**: Occupancy and metrics update automatically after successful CSV upload
+- **Seeds Module** (`src/js/seeds.js`): 
+  - `window.__seedPropertySetup` - Thorpe Gardens property with 4 floorplans (S0, A1, B2, C3)
+  - `window.__seedFPMap` - Pre-configured floorplan label mappings with dash and space variants
+- **Validation Module** (`src/js/validation.js`): CSV validation and strict mapping logic
+- **Test Data** (`data/thorpe_gardens_200_units.csv`): 200-unit test file matching seeded property
+- **Comprehensive Tests**:
+  - Seeded mode validation tests
+  - Strict mapping validation tests
+  - CSV validation unit tests
+  - Updated smoke tests for seeded flow
+- **Global Exports**: `getNPSubtab()` and `setNPSubtab()` exported to window for unit pricing module
+- **Unit Pricing Integration**: Fixed unit pricing rendering to work with seeded mode
+- **Quality Gates**: All tests passing (20/21, 1 skipped)
+
+### Technical Details
+- Property setup written to localStorage on first load
+- Floorplan mappings support multiple label variants (e.g., "A1 - 1x1", "A1 1x1", "1x1")
+- CSV uploads validated against seeded property catalog
+- Unmapped floorplan labels result in hard error and upload rejection
+- Dashboard stats calculation extracted to global scope for reuse
+- Unit pricing module receives necessary tab state functions
+
+### Migration from Step 103
+- Removed manual confirm overlay for seeded mode
+- Added automatic mapping confirmation when all floorplans match
+- Integrated dashboard stats update into automatic confirmation flow
+- Updated all tests to work with automatic mapping flow
+
+### Rollback - October 24, 2025: Reset to Step 102 [SUPERSEDED]
 - **Rollback Decision**: Reset development to Step 102 as clean checkpoint
 - **Current Baseline**: Step 102 — Fix vacancy age display and update Current to Previous
-- **Reason**: Clean slate for tomorrow's development session
-- **Status**: All documentation updated to reflect Step 102 as current baseline
-- **Git State**: Local repository reset to `v1.02` tag, remote remains at Step 103
+- **Reason**: Clean slate for development session
+- **Status**: Superseded by Step 104 completion
 
 ### Added - Step 103: Enhanced dashboard (rent roll only metrics) [ROLLED BACK]
 - **Dashboard Enhancement**: Cleaned up "Status at a Glance" dashboard with rent roll only metrics
