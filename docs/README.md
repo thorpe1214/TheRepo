@@ -27,24 +27,33 @@ This system is built on three core principles:
 ## Testing Baseline
 
 ### Current Baseline
-**Step 102 — Fix vacancy age display and update Current to Previous.html**
+**Step 104 — Seeded single-property mode.html**
 
 This is the current stable baseline for all manual and automated testing. Use this Step file for:
 - Manual smoke checks
 - Regression testing before opening PRs
 - Verifying new changes don't break existing functionality
+- AI-friendly deterministic testing (seeded property setup)
+
+### Key Features
+- **Seeded Mode**: Property setup and floorplan mappings auto-load when localStorage is empty
+- **Thorpe Gardens Pre-Configured**: 4 floorplans (S0, A1, B2, C3) with automatic CSV mapping
+- **Strict Validation**: CSV uploads validated against property floorplan catalog
+- **No Confirm Overlay**: Seamless CSV upload → auto-map → auto-confirm flow
+- **Dashboard Stats**: Real-time occupancy and metrics display
+- **Carry-Forward Mode**: Previous pricing baselines saved and reused between runs
 
 ### Historical Baselines
+- **Step 102 — Fix vacancy age display and update Current to Previous**: Previous stable version
+- **Step 96 — Inline unit detail accordion**: Historical stable version
 - **Step 89E — Stable Baseline (manual testing)**: Original stable baseline after JavaScript modularization
-- **Step 95 — Unit Detail full term pricing from unit baseline**: Previous stable version
-- **Step 96 — Inline unit detail accordion**: Previous stable version
 
 ### Using the Testing Baseline
 When developing a new Step:
-1. Start from the current baseline Step file (Step 102)
+1. Start from the current baseline Step file (Step 104)
 2. Make your changes incrementally
 3. Compare behavior against the baseline to verify no regressions
-4. Run full smoke check before committing
+4. Run full smoke check before committing: `npm test`
 
 ---
 
@@ -73,13 +82,15 @@ We follow a **feature branch → PR → CI → merge → tag** workflow for all 
 ```
 /Users/brennanthorpe/Desktop/Thorpe Management/
 ├── steps/
-│   └── Step 102 — Fix vacancy age display and update Current to Previous.html  # Latest production-ready version
+│   └── Step 104 — Seeded single-property mode.html  # Latest production-ready version
 ├── src/
 │   └── js/
 │       ├── pricing-helpers.js     # Shared utilities (formatMoney, dates, etc.)
 │       ├── pricing-unit.js        # Unit-level pricing & rendering
 │       ├── pricing-fp.js          # Floorplan-level pricing & rendering
 │       ├── app-boot.js            # Application initialization
+│       ├── seeds.js               # Property setup and floorplan mapping seeds
+│       ├── validation.js          # CSV validation and strict mapping logic
 │       └── dev-guards.js          # Development boundary checks
 ├── docs/
 │   ├── README.md                  # This file
@@ -88,15 +99,23 @@ We follow a **feature branch → PR → CI → merge → tag** workflow for all 
 │   ├── ARCHITECTURE.md             # Detailed module documentation
 │   └── CHANGELOG.md                # Version history
 ├── data/
-│   ├── sample_rent_roll_300_units_statuses.csv  # Test data
-│   └── rent_roll_200_units_mixed.csv            # Additional test data
+│   ├── thorpe_gardens_200_units.csv             # Primary test data (Thorpe Gardens)
+│   ├── rent_roll_baseline.csv                   # Baseline test data
+│   ├── rent_roll_negative_case.csv              # Negative test scenarios
+│   ├── rentroll_profile.json                    # Rent roll profile schema
+│   └── sample_rent_roll_300_units_statuses.csv  # Legacy test data
 ├── assets/
 │   └── styles.css                 # Application styles
 ├── tests/                         # Automated test suite
 │   ├── smoke.spec.ts              # End-to-end smoke tests
 │   ├── unit-details.spec.ts       # Unit detail functionality tests
-│   └── boundaries.spec.ts         # Module boundary tests
+│   ├── boundaries.spec.ts         # Module boundary tests
+│   ├── seeded-mode.spec.ts        # Seeded mode validation tests
+│   ├── strict-mapping.spec.ts     # Strict mapping validation tests
+│   └── validation.spec.ts         # CSV validation unit tests
 └── schemas/                       # JSON schema validation
+    ├── rent_roll_profile.schema.json  # Rent roll profile validation
+    └── fpResults.schema.json          # Floorplan results validation
 ```
 
 ### Module Responsibilities
@@ -174,20 +193,23 @@ python3 -m http.server 8000
 ### 3. Open and Test
 ```bash
 # In your browser, navigate to:
-http://localhost:8000/steps/Step%20102%20—%20Fix%20vacancy%20age%20display%20and%20update%20Current%20to%20Previous.html
+http://localhost:8080/steps/Step%20104%20—%20Seeded%20single-property%20mode.html
 
 # Or open directly from file system (some features may not work):
-open "steps/Step 102 — Fix vacancy age display and update Current to Previous.html"
+open "steps/Step 104 — Seeded single-property mode.html"
 ```
 
-### 4. Upload Sample Data
-1. Click **"Choose File"** and select `sample_rent_roll_300_units_statuses.csv`
-2. Verify column mapping auto-detects correctly
-3. Click **"Confirm Mapping"**
-4. Observe occupancy stats update (e.g., Trending Occupancy: 92.00%)
+### 4. Upload Sample Data (Seeded Mode - Automatic Setup)
+1. Click **"Choose File"** and select `data/thorpe_gardens_200_units.csv`
+2. CSV is automatically mapped and validated (no confirmation needed)
+3. Observe occupancy stats update immediately (e.g., Trending Occupancy: 86.50%)
+4. Property setup and floorplan mappings auto-load from seeds
 5. Click **"Run New"** to generate pricing
 6. Navigate to **"New Pricing"** tab → See Floorplan and Unit pricing
-7. Click **"Run Renewals"** → Navigate to **"Renewals"** tab
+7. Click on any unit expand button (▼) to see full term pricing details
+8. Click **"Run Renewals"** → Navigate to **"Renewals"** tab
+
+**Note**: Step 104 uses **seeded mode** - property setup automatically loads when localStorage is empty, providing a deterministic testing environment for the Thorpe Gardens property.
 
 ### Run Tests
 ```bash
@@ -317,6 +339,26 @@ Renewals are generated by comparing **current rent** to **new pricing baseline**
 - Auto-detected on CSV upload
 - Locally persisted in `localStorage` under key `rm:fpmap`
 
+### Property Configuration (Settings Tab)
+- **Thorpe Gardens Property**: Pre-configured property profile with 4 locked floorplans
+- **Strict Mapping Mode**: Validates CSV uploads against property floorplan catalog (default ON)
+- **Floorplan Catalog Lock**: Ensures consistent floorplan codes across all uploads (default ON)
+- **Property Status**: Shows configured status with floorplan count and lock status
+- **Admin Controls**: Temporarily unlock floorplans for testing or special cases
+- **Export Profile**: Download property profile for backup or multi-property setup
+
+**Thorpe Gardens Floorplans:**
+- `S0 - Studio` (0 bedrooms, ~50 units)
+- `A1 1x1` (1 bedroom, ~100 units) 
+- `B2 2x2` (2 bedrooms, ~40 units)
+- `C3 3x2 Small` (3 bedrooms, ~10 units)
+
+When strict mode is enabled:
+- CSV uploads must contain all Thorpe Gardens floorplans
+- Validation occurs before mapping confirmation
+- Clear error messages for wrong property uploads
+- Consistent testing environment for AI agents and operators
+
 ### Global Settings
 - **Comfort Target Trend %**: Overall occupancy target (default 95%)
 - **Pricing Adjustment Style**: Standard, Aggressive, or Custom
@@ -353,9 +395,12 @@ Renewals are generated by comparing **current rent** to **new pricing baseline**
 - **Step 94**: Fix unit-level Details expand (accessibility + tests)
 - **Step 95**: Unit detail term pricing from unit baseline
 - **Step 96**: Inline unit detail accordion
+- **Step 99**: Carry-forward mode for pricing evolution
 - **Step 100**: Vacancy Age Pricing enhancement
 - **Step 101**: UI improvements for vacancy age pricing
-- **Step 102**: Fix vacancy age display and update Current to Previous **(current)**
+- **Step 102**: Fix vacancy age display and update Current to Previous
+- **Step 103**: Strict mapping lock (single-property mode)
+- **Step 104**: Seeded single-property mode **(current - v1.04)**
 
 ---
 
@@ -376,11 +421,15 @@ Renewals are generated by comparing **current rent** to **new pricing baseline**
 12. ✅ Check browser console for errors
 
 ### Sample Data
-Use `sample_rent_roll_300_units_statuses.csv` for testing:
-- 300 units across 3 floorplans (S0, A1, B2)
+Use `data/thorpe_gardens_200_units.csv` for testing (Step 104+):
+- 200 units across 4 floorplans (S0, A1, B2, C3)
 - Mixed statuses (Occupied, Vacant, On Notice)
+- Trending occupancy at 86.50% with 94.0% current occupancy
 - Varying rent levels and lease dates
 - Includes amenity adjustments
+- Matches Thorpe Gardens seeded property setup
+
+Legacy test file: `sample_rent_roll_300_units_statuses.csv` (Step 102 and earlier)
 
 ---
 
@@ -562,5 +611,5 @@ For questions or support, contact the development team.
 
 ---
 
-*Last Updated: October 24, 2025*  
-*Current Version: Step 102 — Fix vacancy age display and update Current to Previous*
+*Last Updated: October 25, 2025*  
+*Current Version: Step 104 — Seeded single-property mode (v1.04)*

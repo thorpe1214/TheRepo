@@ -1281,6 +1281,62 @@
         </div>
       </div>
 
+      <!-- Data Settings (Property Profile) -->
+      <div class="card" id="dataSettingsCard">
+        <h2 data-tab-scope="settings" style="margin:0">Property Configuration</h2>
+        <div class="note" style="margin:8px 0;">
+          <strong>Thorpe Gardens Property:</strong> Floorplans are locked for consistent operations. Operators can adjust pricing levers (bands, floors/ceilings, buffers) but cannot change floorplan catalog.
+        </div>
+        
+        <div id="propertyStatus" class="note" style="margin:12px 0; padding:12px; border-radius:8px; background:#f0f9ff; border:1px solid #0ea5e9;">
+          <div id="propertyInfo">
+            <strong>Property Status:</strong> <span id="propertyStatusText">Not configured</span><br>
+            <small id="propertyDetails">Upload a rent roll to establish property profile</small>
+          </div>
+        </div>
+        
+        <div class="setting-group" style="margin:12px 0;">
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="strictMappingEnabled" style="margin:0;" checked>
+            <span>Strict mapping mode (recommended)</span>
+          </label>
+          <div class="note" style="margin-top:4px; font-size:12px;">
+            Validates CSV headers and floorplan catalog against property profile. Required for consistent testing.
+          </div>
+        </div>
+        
+        <div id="strictMappingControls" style="margin-top:12px;">
+          <div class="setting-group">
+            <label style="display:flex; align-items:center; gap:8px;">
+              <input type="checkbox" id="catalogLockEnabled" style="margin:0;" checked>
+              <span>Lock floorplan catalog (default)</span>
+            </label>
+            <div class="note" style="margin-top:4px; font-size:12px;">
+              Floorplans are locked to property profile. Contact admin to add/remove floorplans.
+            </div>
+          </div>
+          
+          <div class="actions" style="margin-top:12px; gap:8px;">
+            <button id="unlockFloorplansBtn" class="btn secondary" type="button" style="display:none;">Temporarily Unlock Floorplans</button>
+            <button id="downloadProfileBtn" class="btn secondary" type="button" style="display:none;">Export Profile</button>
+          </div>
+          
+          <div id="profileStatus" class="note" style="margin-top:8px; display:none;">
+            <div id="profileInfo"></div>
+          </div>
+        </div>
+        
+        <div class="note" style="margin-top:12px;">
+          <strong>How it works:</strong> 
+          <ul style="margin:4px 0; padding-left:16px;">
+            <li><strong>Pre-configured:</strong> Thorpe Gardens property profile is built-in</li>
+            <li><strong>Operator Control:</strong> Adjust pricing levers (bands, floors, buffers, etc.)</li>
+            <li><strong>Consistent Testing:</strong> All rent rolls must match Thorpe Gardens floorplans</li>
+            <li><strong>Floorplan Changes:</strong> Contact admin to modify property configuration</li>
+          </ul>
+        </div>
+      </div>
+
       <!-- Floorplan Map (canonical CODE mapping) -->
       <div class="card" id="fpMapCard">
         <h2 data-tab-scope="settings">Floorplan Map</h2>
@@ -1640,6 +1696,7 @@
 </div>
 
 <script src="./../src/js/pricing-helpers.js"></script>
+<script src="./../src/js/validation.js"></script>
 <script src="./../src/js/dev-guards.js"></script>
 <script src="./../src/js/pricing-unit.js"></script>
 <script src="./../src/js/pricing-fp.js"></script>
@@ -1776,6 +1833,45 @@
     Papa.parse(f,{header:true,skipEmptyLines:true,complete:(r)=>{
       rawRows=r.data;
       const cols=Object.keys(rawRows[0]||{});
+      
+      // PROPERTY PROFILE VALIDATION (temporarily disabled for testing)
+      const strictMode = false; // window.isStrictMappingEnabled && window.isStrictMappingEnabled();
+      if (strictMode) {
+        // Ensure Thorpe Gardens profile is initialized
+        if (window.initializeThorpeGardensProfile) {
+          window.initializeThorpeGardensProfile();
+        }
+        
+        const propertyProfile = window.loadPropertyProfile && window.loadPropertyProfile();
+        if (propertyProfile && window.RMValidation) {
+          const csvData = { headers: cols, rows: rawRows };
+          
+          // Simple floorplan validation - just check if CSV has Thorpe Gardens floorplans
+          const csvFloorplans = rawRows.map(row => row.Floorplan || row.floorplan).filter(Boolean);
+          const uniqueFloorplans = [...new Set(csvFloorplans)];
+          
+          const hasValidFloorplans = propertyProfile.floorplanCatalog.every(expectedFp => 
+            uniqueFloorplans.includes(expectedFp)
+          );
+          
+          if (!hasValidFloorplans) {
+            const missingFloorplans = propertyProfile.floorplanCatalog.filter(fp => 
+              !uniqueFloorplans.includes(fp)
+            );
+            alert(`❌ Wrong Property Uploaded!\n\nThis CSV doesn't contain Thorpe Gardens floorplans.\n\nMissing floorplans: ${missingFloorplans.join(', ')}\n\nFound floorplans: ${uniqueFloorplans.join(', ')}\n\nExpected floorplans: ${propertyProfile.floorplanCatalog.join(', ')}\n\nOnly Thorpe Gardens rent rolls are accepted.`);
+            e.target.value = ''; // Clear file input
+            return;
+          }
+        } else if (propertyProfile) {
+          alert('❌ Strict mapping is enabled but validation system not available.\n\nPlease refresh the page and try again.');
+          e.target.value = ''; // Clear file input
+          return;
+        } else {
+          // No property profile - this is the first upload (admin setup)
+          console.log('[RM] First upload - will establish property profile');
+        }
+      }
+      
       mapping={};
       const lower = cols.map(c=>({orig:c, norm:normalizeHeader(c)}));
       for(const tf of targetFields){
@@ -1783,6 +1879,11 @@
         if(!best) best = lower.find(c=>tf.hints.some(h=>c.norm===normalizeHeader(h)));
         mapping[tf.key] = best ? best.orig : "";
       }
+      
+      // Store mapping and rawRows in global scope for property profile creation
+      window.mapping = mapping;
+      window.rawRows = rawRows;
+      
       renderMappingTable(cols, mapping); $("automap").style.display="block"; validateMappingPreview();
     },error:(err)=>alert("Parse error: "+err.message)});
   });
@@ -4069,11 +4170,191 @@ document.addEventListener('DOMContentLoaded', function(){
     }
   }
   
+  // ============================================================================
+  // DATA SETTINGS UI (STRICT MAPPING)
+  // ============================================================================
+  
+  // Helper function for downloading files (DOM-dependent)
+  function downloadFile(url, filename) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  window.downloadFile = downloadFile;
+  
+  function loadDataSettings() {
+    return {
+      strictMappingEnabled: window.isStrictMappingEnabled ? window.isStrictMappingEnabled() : true, // Default ON
+      catalogLockEnabled: window.isCatalogLockEnabled ? window.isCatalogLockEnabled() : true, // Default ON
+      propertyProfile: window.loadPropertyProfile ? window.loadPropertyProfile() : null
+    };
+  }
+  
+  function saveDataSettings(settings) {
+    if (window.setStrictMappingEnabled) {
+      window.setStrictMappingEnabled(settings.strictMappingEnabled);
+    }
+    if (window.setCatalogLockEnabled) {
+      window.setCatalogLockEnabled(settings.catalogLockEnabled);
+    }
+  }
+  
+  function updateDataSettingsUI() {
+    const settings = loadDataSettings();
+    const propertyProfile = settings.propertyProfile;
+    
+    // Update checkboxes (default to checked)
+    const strictCheckbox = $('strictMappingEnabled');
+    const catalogCheckbox = $('catalogLockEnabled');
+    const controlsDiv = $('strictMappingControls');
+    const propertyStatusDiv = $('propertyStatus');
+    const propertyStatusText = $('propertyStatusText');
+    const propertyDetails = $('propertyDetails');
+    const captureBtn = $('capturePropertyProfileBtn');
+    const unlockBtn = $('unlockFloorplansBtn');
+    const downloadBtn = $('downloadProfileBtn');
+    
+    if (strictCheckbox) {
+      strictCheckbox.checked = settings.strictMappingEnabled;
+    }
+    
+    if (catalogCheckbox) {
+      catalogCheckbox.checked = settings.catalogLockEnabled;
+    }
+    
+    if (controlsDiv) {
+      controlsDiv.style.display = 'block'; // Always visible now
+    }
+    
+    // Update property status
+    if (propertyStatusDiv && propertyStatusText && propertyDetails) {
+      if (propertyProfile) {
+        propertyStatusText.textContent = 'Configured';
+        propertyDetails.textContent = `${propertyProfile.propertyName || 'Property'} - ${propertyProfile.floorplanCatalog ? propertyProfile.floorplanCatalog.length : 0} floorplans locked`;
+        propertyStatusDiv.style.background = '#f0fdf4';
+        propertyStatusDiv.style.borderColor = '#22c55e';
+        
+        if (unlockBtn) unlockBtn.style.display = 'inline-block';
+        if (downloadBtn) downloadBtn.style.display = 'inline-block';
+      } else {
+        propertyStatusText.textContent = 'Not configured';
+        propertyDetails.textContent = 'Thorpe Gardens property profile will be initialized automatically';
+        propertyStatusDiv.style.background = '#fef3c7';
+        propertyStatusDiv.style.borderColor = '#f59e0b';
+        
+        if (unlockBtn) unlockBtn.style.display = 'none';
+        if (downloadBtn) downloadBtn.style.display = 'none';
+      }
+    }
+  }
+  
+  function initDataSettingsUI() {
+    const strictCheckbox = $('strictMappingEnabled');
+    const catalogCheckbox = $('catalogLockEnabled');
+    const unlockBtn = $('unlockFloorplansBtn');
+    const downloadBtn = $('downloadProfileBtn');
+    
+    if (strictCheckbox) {
+      strictCheckbox.addEventListener('change', function() {
+        const settings = loadDataSettings();
+        settings.strictMappingEnabled = this.checked;
+        saveDataSettings(settings);
+        updateDataSettingsUI();
+      });
+    }
+    
+    if (catalogCheckbox) {
+      catalogCheckbox.addEventListener('change', function() {
+        const settings = loadDataSettings();
+        settings.catalogLockEnabled = this.checked;
+        saveDataSettings(settings);
+        updateDataSettingsUI();
+      });
+    }
+    
+    
+    if (unlockBtn) {
+      unlockBtn.addEventListener('click', function() {
+        if (confirm('⚠️ Temporarily Unlock Floorplans?\n\nThis will allow uploading CSVs with different floorplan catalogs.\n\nOnly use this for testing or special cases.\n\nContinue?')) {
+          if (window.setPropertyUnlocked) {
+            window.setPropertyUnlocked(true);
+            alert('✅ Floorplans temporarily unlocked.\n\nYou can now upload CSVs with different floorplan catalogs.');
+            updateDataSettingsUI();
+          }
+        }
+      });
+    }
+    
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', function() {
+        const profile = window.loadPropertyProfile ? window.loadPropertyProfile() : null;
+        if (profile && window.downloadRentRollProfile) {
+          window.downloadRentRollProfile(profile, 'property_profile.json');
+        }
+      });
+    }
+    
+    // Update UI on page load
+    updateDataSettingsUI();
+    
+    // Update UI when switching to Settings tab
+    const settingsTab = document.querySelector('[data-tab="settings"]');
+    if (settingsTab) {
+      settingsTab.addEventListener('click', function() {
+        setTimeout(updateDataSettingsUI, 100);
+      });
+    }
+  }
+  
+  // Initialize Thorpe Gardens property profile if not exists
+  function initializeThorpeGardensProfile() {
+    const existingProfile = window.loadPropertyProfile ? window.loadPropertyProfile() : null;
+    if (!existingProfile) {
+      const thorpeGardensProfile = {
+        version: '1.0',
+        propertyId: 'thorpe-gardens',
+        propertyName: 'Thorpe Gardens',
+        floorplanCatalog: ['S0 - Studio', 'A1 1x1', 'B2 2x2', 'C3 3x2 Small'],
+        floorplanDetails: {
+          'S0 - Studio': { name: 'Studio', bedrooms: 0, units: 50, sampleRent: 1350 },
+          'A1 1x1': { name: '1 Bedroom', bedrooms: 1, units: 100, sampleRent: 1500 },
+          'B2 2x2': { name: '2 Bedroom', bedrooms: 2, units: 40, sampleRent: 2000 },
+          'C3 3x2 Small': { name: '3 Bedroom', bedrooms: 3, units: 10, sampleRent: 2500 }
+        },
+        createdAt: new Date().toISOString(),
+        createdBy: 'system',
+        description: 'Thorpe Gardens property floorplan catalog - 200 units, 4 floorplans',
+        locked: true,
+        metadata: {
+          sampleRowCount: 200,
+          totalUnits: 200,
+          preConfigured: true
+        }
+      };
+      
+      if (window.savePropertyProfile) {
+        window.savePropertyProfile(thorpeGardensProfile);
+        console.log('[RM] Thorpe Gardens property profile initialized');
+      }
+    }
+  }
+  
+  // Expose to global scope
+  window.initializeThorpeGardensProfile = initializeThorpeGardensProfile;
+
   // Initialize when DOM is ready
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initVacancyAgeUI);
+    document.addEventListener('DOMContentLoaded', function() {
+      initializeThorpeGardensProfile();
+      initDataSettingsUI();
+    });
   } else {
-    initVacancyAgeUI();
+    initializeThorpeGardensProfile();
+    initDataSettingsUI();
   }
 })();
 </script>

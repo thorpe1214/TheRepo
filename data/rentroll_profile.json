@@ -1,0 +1,42 @@
+{
+  "version": "1.0",
+  "headers": [
+    "unit",
+    "floorplan",
+    "bedrooms",
+    "status",
+    "current rent",
+    "lease start",
+    "lease end",
+    "preleasestart",
+    "vacantdays",
+    "move-in date",
+    "amenityadj"
+  ],
+  "mapping": {
+    "UnitID": "Unit",
+    "Floorplan": "Floorplan",
+    "Bedrooms": "Bedrooms",
+    "Status": "Status",
+    "CurrentRent": "Current Rent",
+    "LeaseEnd": "Lease End",
+    "PreleaseStart": "PreleaseStart",
+    "VacantDays": "VacantDays",
+    "MoveInDate": "Move-In Date",
+    "AmenityAdj": "AmenityAdj"
+  },
+  "floorplanCatalog": [
+    "S0",
+    "A1",
+    "B2"
+  ],
+  "createdAt": "2024-10-25T12:00:00.000Z",
+  "createdBy": "system",
+  "propertyId": "test-property",
+  "metadata": {
+    "description": "Baseline test profile for strict mapping validation",
+    "tags": ["test", "baseline", "strict-mapping"],
+    "sampleRowCount": 15
+  }
+}
+
