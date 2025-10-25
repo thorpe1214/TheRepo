@@ -97,9 +97,9 @@
   function vacancySpecialPct(vacantDays) {
     const days = Number(vacantDays) || 0;
     if (days >= 90) return 15; // 15% off for 90+ days
-    if (days >= 60) return 10;  // 10% off for 60+ days
-    if (days >= 30) return 5;   // 5% off for 30+ days
-    return 0;                   // No special for <30 days
+    if (days >= 60) return 10; // 10% off for 60+ days
+    if (days >= 30) return 5; // 5% off for 30+ days
+    return 0; // No special for <30 days
   }
   window.vacancySpecialPct = vacancySpecialPct;
 
@@ -108,16 +108,16 @@
     try {
       const settings = JSON.parse(localStorage.getItem('vacancyAgeSettings') || '{}');
       if (!settings.enabled) return 0;
-      
+
       const days = Number(vacantDays) || 0;
       if (days < 30) return 0; // No discount before 30 days
-      
+
       const configs = {
         minimal: { dailyRate: 0.1, maxDiscount: 5 },
         medium: { dailyRate: 0.2, maxDiscount: 10 },
-        aggressive: { dailyRate: 0.3, maxDiscount: 15 }
+        aggressive: { dailyRate: 0.3, maxDiscount: 15 },
       };
-      
+
       const config = configs[settings.intensity] || configs.medium;
       const discount = Math.min(config.dailyRate * (days - 30), config.maxDiscount);
       return Math.max(0, discount);

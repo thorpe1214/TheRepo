@@ -445,13 +445,13 @@
         const refPrice = Number(fp.referenceBase) || NaN;
         const amen = Number(u.amenity_adj || 0);
         const proposedWithAmen = Math.max(0, (isFinite(refPrice) ? refPrice : 0) + amen);
-        
+
         // Apply vacancy age discount for vacant units
         let finalProposedPrice = proposedWithAmen;
         let vacancyDiscount = 0;
         let vacancyDiscountPct = 0;
         let isDiscounted = false;
-        
+
         if (st === 'Vacant') {
           const vacantDays = vacancyAgeDays(u, new Date());
           vacancyDiscountPct = vacancyAgeDiscount(vacantDays);
@@ -461,11 +461,15 @@
             isDiscounted = true;
           }
         }
-        
+
         // Use carry-forward baseline as "Previous" if available, otherwise use current rent
         const carryForwardBaseline = getCarryForwardBaseline(fp.code);
-        const previousPrice = carryForwardBaseline !== null ? carryForwardBaseline : (isFinite(cur) ? cur : refPrice);
-        const d$ = isFinite(previousPrice) && isFinite(finalProposedPrice) ? finalProposedPrice - previousPrice : NaN;
+        const previousPrice =
+          carryForwardBaseline !== null ? carryForwardBaseline : isFinite(cur) ? cur : refPrice;
+        const d$ =
+          isFinite(previousPrice) && isFinite(finalProposedPrice)
+            ? finalProposedPrice - previousPrice
+            : NaN;
         const dP = isFinite(previousPrice) && previousPrice > 0 ? (d$ / previousPrice) * 100 : NaN;
         let availTxt = '—';
         if (st === 'Vacant') {
@@ -480,7 +484,7 @@
           const sign = amen > 0 ? '+' : '-';
           amenCell = sign + formatMoney(Math.abs(amen));
         }
-        
+
         // Format proposed price with vacancy age discount styling
         let proposedPriceDisplay = '';
         if (isFinite(finalProposedPrice)) {
@@ -492,7 +496,7 @@
         } else {
           proposedPriceDisplay = '—';
         }
-        
+
         const key = `${fp.code}::${String(u.unit || '')}`;
         html +=
           `<tr class="unit-row" data-key="${key}" data-base="${isFinite(finalProposedPrice) ? finalProposedPrice : ''}" data-cur="${isFinite(previousPrice) ? previousPrice : ''}" data-fp="${fp.code}">` +
@@ -567,12 +571,12 @@
       };
     // Close any expanded inline details on re-render
     closeInlineUnitDetail();
-    
+
     // Wire expand buttons (click + keyboard) - using event delegation for inline accordion
     const unitSection = document.getElementById('unitPricingSection');
     if (unitSection && !unitSection.__wiredInline) {
       unitSection.__wiredInline = true;
-      
+
       // Click handler
       unitSection.addEventListener('click', e => {
         const btn = e.target.closest('.unit-expand');
@@ -581,7 +585,7 @@
           if (unitId) toggleInlineUnitDetail(unitId);
         }
       });
-      
+
       // Keyboard handler
       unitSection.addEventListener('keydown', e => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -592,7 +596,7 @@
             if (unitId) toggleInlineUnitDetail(unitId);
           }
         }
-        
+
         // Escape key closes inline detail when focused inside
         if (e.key === 'Escape') {
           const detailRow = e.target.closest('.unit-detail-row');
@@ -731,15 +735,15 @@
   function computeUnitBaseline(fpCode, amenityAdj, referenceTerm) {
     const fpIdx = buildFpIndex();
     const fp = fpIdx.get(fpCode);
-    
+
     if (!fp || !isFinite(fp.referenceBase)) {
       return { baseline: 0, fpBaseline: 0, amenityAdj: 0, referenceTerm: referenceTerm || 14 };
     }
-    
+
     const fpBaseline = Number(fp.referenceBase) || 0;
     const amenity = Number(amenityAdj) || 0;
     const baseline = Math.max(0, fpBaseline + amenity);
-    
+
     return {
       baseline,
       fpBaseline,
@@ -759,38 +763,39 @@
   function computeUnitTermPrices(unitBaseline, referenceTerm, unit = null) {
     const terms = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
     const results = [];
-    
+
     // Calculate vacancy age discount if unit is provided
     let vacancyAgeDiscountPct = 0;
     if (unit && unitStatus(unit) === 'Vacant') {
       const vacantDays = vacancyAgeDays(unit, new Date());
       vacancyAgeDiscountPct = vacancyAgeDiscount(vacantDays) / 100; // Convert percentage to decimal
     }
-    
+
     for (const term of terms) {
       const longTerm = term >= 10;
-      
+
       // Calculate end date for this term
       const end = new Date();
       end.setMonth(end.getMonth() + term);
       const monthIdx = end.getMonth();
-      
+
       // Short-term premium (2-9 months)
-      const shortPct = longTerm ? 0 : (shortTermAdj(100, term) / 100 - 1);
-      
+      const shortPct = longTerm ? 0 : shortTermAdj(100, term) / 100 - 1;
+
       // Over-cap calculation (terms beyond reference)
       const isOverCap = term > referenceTerm;
       const overCapPct = isOverCap ? 0.02 : 0; // 2% premium for over-cap terms
-      
+
       // Seasonality (only if positive and over-cap)
       const seasonalityMult = getSeasonalityMultiplier(monthIdx);
       const seasonalityPct = seasonalityMult - 1;
       const seasonalUplift = seasonalityPct > 0 && isOverCap ? seasonalityPct : 0;
-      
+
       // Calculate final price (apply vacancy age discount)
-      let price = unitBaseline * (1 + shortPct + overCapPct + seasonalUplift - vacancyAgeDiscountPct);
+      let price =
+        unitBaseline * (1 + shortPct + overCapPct + seasonalUplift - vacancyAgeDiscountPct);
       price = Math.max(0, Math.round(price));
-      
+
       // Build notes
       const parts = [];
       if (shortPct !== 0) {
@@ -805,19 +810,20 @@
       if (vacancyAgeDiscountPct !== 0) {
         parts.push(`Vacancy age: -${(vacancyAgeDiscountPct * 100).toFixed(1)}%`);
       }
-      
+
       const totalPct = (price / Math.max(1, unitBaseline) - 1) * 100;
-      const notes = parts.length > 0 
-        ? `${parts.join(' + ')} = ${totalPct >= 0 ? '+' : ''}${totalPct.toFixed(1)}%`
-        : 'Base price';
-      
+      const notes =
+        parts.length > 0
+          ? `${parts.join(' + ')} = ${totalPct >= 0 ? '+' : ''}${totalPct.toFixed(1)}%`
+          : 'Base price';
+
       results.push({
         term,
         price,
         notes,
       });
     }
-    
+
     return results;
   }
 
@@ -829,19 +835,23 @@
    */
   function renderUnitTermTable(container, unit, fpCode) {
     if (!container || !unit) return;
-    
+
     // Get unit baseline data
     const amenityAdj = Number(unit.amenity_adj) || 0;
     const baselineData = computeUnitBaseline(fpCode, amenityAdj, 14);
-    
+
     if (!baselineData.baseline || baselineData.baseline === 0) {
       container.innerHTML = '<div class="note">No baseline available for this unit.</div>';
       return;
     }
-    
+
     // Compute term prices
-    const termPrices = computeUnitTermPrices(baselineData.baseline, baselineData.referenceTerm, unit);
-    
+    const termPrices = computeUnitTermPrices(
+      baselineData.baseline,
+      baselineData.referenceTerm,
+      unit
+    );
+
     // Build table HTML
     let html = '<div class="unit-terms-section">';
     html += `<h4>Term Pricing</h4>`;
@@ -853,7 +863,7 @@
       html += ` ${sign}${formatMoney(amenityAdj)} amenity`;
     }
     html += `)`;
-    
+
     // Add vacancy age discount information if applicable
     if (unit && unitStatus(unit) === 'Vacant') {
       const vacantDays = vacancyAgeDays(unit, new Date());
@@ -863,11 +873,12 @@
       }
     }
     html += `</div>`;
-    
+
     html += '<table class="basic" style="width:100%">';
-    html += '<thead><tr><th>Term</th><th>Price</th><th style="text-align:right;">Notes</th></tr></thead>';
+    html +=
+      '<thead><tr><th>Term</th><th>Price</th><th style="text-align:right;">Notes</th></tr></thead>';
     html += '<tbody>';
-    
+
     termPrices.forEach(t => {
       html += `<tr>`;
       html += `<td>${t.term} mo</td>`;
@@ -875,10 +886,10 @@
       html += `<td style="text-align:right;opacity:0.9"><small>${__np_escape(t.notes)}</small></td>`;
       html += `</tr>`;
     });
-    
+
     html += '</tbody></table>';
     html += '</div>';
-    
+
     container.innerHTML = html;
   }
 
@@ -890,19 +901,19 @@
    */
   function mountInlineUnitPanel(parentEl, unit, fpCode) {
     if (!parentEl || !unit) return;
-    
+
     // Clear any existing content
     parentEl.innerHTML = '';
-    
+
     // Create container for term pricing
     const container = document.createElement('div');
     container.className = 'inline-unit-detail-content';
     container.style.padding = '16px';
     container.style.backgroundColor = '#f8f9fa';
-    
+
     // Render term pricing table
     renderUnitTermTable(container, unit, fpCode);
-    
+
     parentEl.appendChild(container);
   }
 
@@ -910,13 +921,13 @@
   function closeInlineUnitDetail() {
     // Remove any existing inline detail rows
     document.querySelectorAll('.unit-detail-row').forEach(row => row.remove());
-    
+
     // Reset all expand button states
     document.querySelectorAll('.unit-expand').forEach(btn => {
       btn.setAttribute('aria-expanded', 'false');
       btn.innerHTML = '▼';
     });
-    
+
     // Track closed state
     window.__currentOpenUnit = null;
   }
@@ -926,61 +937,63 @@
     // Find the unit row
     const unitRow = document.querySelector(`tr.unit-row[data-key*="${unitId}"]`);
     if (!unitRow) return;
-    
+
     // Get the expand button
     const expandBtn = unitRow.querySelector('.unit-expand');
     if (!expandBtn) return;
-    
+
     // Check if this unit is already open
     const isCurrentlyOpen = window.__currentOpenUnit === unitId;
-    
+
     // Close any open unit detail
     closeInlineUnitDetail();
-    
+
     // If this was already open, just close it (toggle off)
     if (isCurrentlyOpen) {
       // Focus back on the button
       if (expandBtn) expandBtn.focus();
       return;
     }
-    
+
     // Get unit data
     const fp = unitRow.getAttribute('data-fp');
     const unitData = (window.__npUnitsFiltered || []).find(u => String(u.unit) === unitId);
-    
+
     if (!unitData || !fp) return;
-    
+
     // Create inline detail row
     const detailRow = document.createElement('tr');
     detailRow.className = 'unit-detail-row';
     const detailId = `unit-detail-${unitId}`;
     detailRow.id = detailId;
-    
+
     // Create cell that spans all columns
     const detailCell = document.createElement('td');
     detailCell.setAttribute('colspan', '100');
     detailCell.setAttribute('role', 'region');
     detailCell.setAttribute('aria-label', `Unit ${unitId} term pricing details`);
-    
+
     // Insert after the unit row
     unitRow.parentNode.insertBefore(detailRow, unitRow.nextSibling);
     detailRow.appendChild(detailCell);
-    
+
     // Mount the inline panel
     mountInlineUnitPanel(detailCell, unitData, fp);
-    
+
     // Update button state
     if (expandBtn) {
       expandBtn.setAttribute('aria-expanded', 'true');
       expandBtn.setAttribute('aria-controls', detailId);
       expandBtn.innerHTML = '▲';
     }
-    
+
     // Track open state
     window.__currentOpenUnit = unitId;
-    
+
     // Focus management - move focus into the detail panel
-    const firstFocusable = detailCell.querySelector('h4, button, a, input, [tabindex]:not([tabindex="-1"])');
+    const firstFocusable = detailCell.querySelector(
+      'h4, button, a, input, [tabindex]:not([tabindex="-1"])'
+    );
     if (firstFocusable) {
       setTimeout(() => firstFocusable.focus(), 100);
     }

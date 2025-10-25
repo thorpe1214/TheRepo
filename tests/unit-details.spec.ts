@@ -9,7 +9,7 @@ test.describe('Unit Details Inline Accordion', () => {
     // Navigate to current step
     await page.goto(`/${CURRENT_STEP}`);
     await page.waitForLoadState('networkidle');
-    
+
     // Verify the unit pricing section exists
     const unitPricingSection = page.locator('#unitPricingSection');
     await expect(unitPricingSection).toBeAttached();
@@ -38,7 +38,9 @@ test.describe('Unit Details Inline Accordion', () => {
     await page.waitForTimeout(500);
 
     // Navigate to New Pricing -> Unit Pricing
-    const newPricingTab = page.locator('button:has-text("💵 New Pricing"), button:has-text("New Pricing")').first();
+    const newPricingTab = page
+      .locator('button:has-text("💵 New Pricing"), button:has-text("New Pricing")')
+      .first();
     await expect(newPricingTab).toBeVisible();
     await newPricingTab.click();
 
@@ -59,7 +61,7 @@ test.describe('Unit Details Inline Accordion', () => {
     const firstExpandBtn = page.locator('.unit-expand').first();
     await expect(firstExpandBtn).toBeVisible({ timeout: 5000 });
     await expect(firstExpandBtn).toHaveAttribute('aria-expanded', 'false');
-    
+
     await firstExpandBtn.click();
     await page.waitForTimeout(300);
 
@@ -103,7 +105,9 @@ test.describe('Unit Details Inline Accordion', () => {
     await page.waitForTimeout(500);
 
     // Navigate to New Pricing -> Unit Pricing
-    const newPricingTab = page.locator('button:has-text("💵 New Pricing"), button:has-text("New Pricing")').first();
+    const newPricingTab = page
+      .locator('button:has-text("💵 New Pricing"), button:has-text("New Pricing")')
+      .first();
     await expect(newPricingTab).toBeVisible();
     await newPricingTab.click();
 
@@ -171,7 +175,9 @@ test.describe('Unit Details Inline Accordion', () => {
     await page.waitForTimeout(500);
 
     // Navigate to New Pricing -> Unit Pricing
-    const newPricingTab = page.locator('button:has-text("💵 New Pricing"), button:has-text("New Pricing")').first();
+    const newPricingTab = page
+      .locator('button:has-text("💵 New Pricing"), button:has-text("New Pricing")')
+      .first();
     await expect(newPricingTab).toBeVisible();
     await newPricingTab.click();
 
@@ -229,7 +235,9 @@ test.describe('Unit Details Inline Accordion', () => {
     await page.waitForTimeout(500);
 
     // Navigate to New Pricing -> Unit Pricing
-    const newPricingTab = page.locator('button:has-text("💵 New Pricing"), button:has-text("New Pricing")').first();
+    const newPricingTab = page
+      .locator('button:has-text("💵 New Pricing"), button:has-text("New Pricing")')
+      .first();
     await expect(newPricingTab).toBeVisible();
     await newPricingTab.click();
 
@@ -283,7 +291,9 @@ test.describe('Unit Details Inline Accordion', () => {
     await page.waitForTimeout(500);
 
     // Navigate to New Pricing -> Unit Pricing
-    const newPricingTab = page.locator('button:has-text("💵 New Pricing"), button:has-text("New Pricing")').first();
+    const newPricingTab = page
+      .locator('button:has-text("💵 New Pricing"), button:has-text("New Pricing")')
+      .first();
     await expect(newPricingTab).toBeVisible();
     await newPricingTab.click();
 
@@ -295,17 +305,17 @@ test.describe('Unit Details Inline Accordion', () => {
     // Find a unit row with amenity adjustment (non-zero in amenities column)
     const unitRows = page.locator('.unit-row');
     const rowCount = await unitRows.count();
-    
+
     let foundUnitWithAmenity = false;
     for (let i = 0; i < Math.min(rowCount, 10); i++) {
       const row = unitRows.nth(i);
       const amenityCell = row.locator('td').nth(8); // Amenities column
       const amenityText = await amenityCell.textContent();
-      
+
       if (amenityText && amenityText.trim() !== '' && amenityText.trim() !== '—') {
         // Found a unit with amenity adjustment
         foundUnitWithAmenity = true;
-        
+
         // Click its expand button
         const expandBtn = row.locator('.unit-expand');
         await expandBtn.click();
@@ -319,7 +329,7 @@ test.describe('Unit Details Inline Accordion', () => {
         const baselineNote = detailRow.locator('.note');
         const noteText = await baselineNote.textContent();
         expect(noteText).toContain('amenity');
-        
+
         break;
       }
     }

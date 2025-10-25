@@ -36,7 +36,7 @@
 (function () {
   // Carry-forward functionality for pricing evolution testing
   const CARRY_FORWARD_KEY = 'rm_carry_forward_baselines';
-  
+
   function loadCarryForwardBaselines() {
     try {
       const stored = localStorage.getItem(CARRY_FORWARD_KEY);
@@ -46,13 +46,13 @@
       return null;
     }
   }
-  
+
   function saveCarryForwardBaselines(fpBaselines) {
     try {
       const data = {
         fpBaselines: fpBaselines,
         at: new Date().toISOString(),
-        scenario: 'Default'
+        scenario: 'Default',
       };
       localStorage.setItem(CARRY_FORWARD_KEY, JSON.stringify(data));
       console.log('[RM] Saved carry-forward baselines:', fpBaselines);
@@ -60,7 +60,7 @@
       console.warn('[RM] Failed to save carry-forward baselines:', e);
     }
   }
-  
+
   function resetCarryForwardBaselines() {
     try {
       localStorage.removeItem(CARRY_FORWARD_KEY);
@@ -69,11 +69,11 @@
       console.warn('[RM] Failed to reset carry-forward baselines:', e);
     }
   }
-  
+
   function getCarryForwardBaseline(code) {
     const stored = loadCarryForwardBaselines();
-    return stored && stored.fpBaselines && stored.fpBaselines[code] 
-      ? Number(stored.fpBaselines[code]) 
+    return stored && stored.fpBaselines && stored.fpBaselines[code]
+      ? Number(stored.fpBaselines[code])
       : null;
   }
 
@@ -456,8 +456,12 @@
           const srVal = Number(srByCode.get(code) || 0);
           // Use carry-forward baseline if available, otherwise fall back to starting rent or current baseline
           const carryForwardBaseline = getCarryForwardBaseline(code);
-          const baseVal = carryForwardBaseline !== null ? carryForwardBaseline 
-            : (srVal > 0 ? srVal : Number(baselineCurrentByCode.get(code) || 0));
+          const baseVal =
+            carryForwardBaseline !== null
+              ? carryForwardBaseline
+              : srVal > 0
+                ? srVal
+                : Number(baselineCurrentByCode.get(code) || 0);
           const dirVal = Number(dirByCode.get(code) || 0);
           let baseCand = baseVal * (1 + dirVal) * seas;
           if (dirVal < 0) baseCand = Math.max(baseCand, baseVal * (1 - cfg.maxWeeklyDec));
@@ -685,7 +689,7 @@
               ? Number(s.price_ceiling_dollars)
               : null,
         });
-        
+
         // Save carry-forward baselines for next run
         const fpBaselines = {};
         window.__fpResults.forEach(result => {
