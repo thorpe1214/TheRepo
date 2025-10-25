@@ -320,4 +320,3 @@ test.describe('Strict Mapping Tests', () => {
     await expect(controlsDiv).toBeVisible();
   });
 });
-

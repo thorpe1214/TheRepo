@@ -19,18 +19,18 @@ global.window = {
     floorplans: [
       { code: 'S0', name: 'Studio' },
       { code: 'A1', name: '1x1' },
-      { code: 'B2', name: '2x2' }
-    ]
+      { code: 'B2', name: '2x2' },
+    ],
   },
   __seedFPMap: {
-    'Studio': 'S0',
+    Studio: 'S0',
     '1x1 A': 'A1',
-    'Two Bedroom B': 'B2'
-  }
+    'Two Bedroom B': 'B2',
+  },
 };
 
 // Import the function to test
-const { resolveMappingFromSeedsOrProfile } = require('../src/js/pricing-helpers.js');
+import { resolveMappingFromSeedsOrProfile } from '../src/js/pricing-helpers.js';
 
 describe('Mapping Resolution', () => {
   beforeEach(() => {
@@ -43,14 +43,14 @@ describe('Mapping Resolution', () => {
       headers: ['UnitID', 'Floorplan', 'Status'],
       rows: [
         { UnitID: '101', Floorplan: 'Studio', Status: 'Vacant' },
-        { UnitID: '102', Floorplan: '1x1 A', Status: 'Occupied' }
-      ]
+        { UnitID: '102', Floorplan: '1x1 A', Status: 'Occupied' },
+      ],
     };
-    
+
     const mapping = {
       UnitID: 'UnitID',
       Floorplan: 'Floorplan',
-      Status: 'Status'
+      Status: 'Status',
     };
 
     // Mock empty saved map (should use seeds)
@@ -63,7 +63,7 @@ describe('Mapping Resolution', () => {
     expect(result).toHaveProperty('allMapped');
     expect(result).toHaveProperty('unmappedLabels');
     expect(result).toHaveProperty('floorplanLabels');
-    
+
     expect(result.mapping).toEqual(mapping);
     expect(result.source).toBe('seeds');
     expect(result.allMapped).toBe(true);
@@ -76,14 +76,14 @@ describe('Mapping Resolution', () => {
       headers: ['UnitID', 'Floorplan', 'Status'],
       rows: [
         { UnitID: '101', Floorplan: 'Unknown Floorplan', Status: 'Vacant' },
-        { UnitID: '102', Floorplan: 'Another Unknown', Status: 'Occupied' }
-      ]
+        { UnitID: '102', Floorplan: 'Another Unknown', Status: 'Occupied' },
+      ],
     };
-    
+
     const mapping = {
       UnitID: 'UnitID',
       Floorplan: 'Floorplan',
-      Status: 'Status'
+      Status: 'Status',
     };
 
     // Mock empty saved map (should use seeds)
@@ -99,21 +99,19 @@ describe('Mapping Resolution', () => {
   test('resolveMappingFromSeedsOrProfile uses saved mapping when available', () => {
     const csvData = {
       headers: ['UnitID', 'Floorplan', 'Status'],
-      rows: [
-        { UnitID: '101', Floorplan: 'Studio', Status: 'Vacant' }
-      ]
+      rows: [{ UnitID: '101', Floorplan: 'Studio', Status: 'Vacant' }],
     };
-    
+
     const mapping = {
       UnitID: 'UnitID',
       Floorplan: 'Floorplan',
-      Status: 'Status'
+      Status: 'Status',
     };
 
     // Mock saved map
     const savedMap = {
-      'Studio': 'S0',
-      'Custom Floorplan': 'A1'
+      Studio: 'S0',
+      'Custom Floorplan': 'A1',
     };
     localStorageMock.getItem.mockReturnValue(JSON.stringify(savedMap));
 
@@ -126,14 +124,12 @@ describe('Mapping Resolution', () => {
   test('resolveMappingFromSeedsOrProfile handles missing floorplan column', () => {
     const csvData = {
       headers: ['UnitID', 'Status'],
-      rows: [
-        { UnitID: '101', Status: 'Vacant' }
-      ]
+      rows: [{ UnitID: '101', Status: 'Vacant' }],
     };
-    
+
     const mapping = {
       UnitID: 'UnitID',
-      Status: 'Status'
+      Status: 'Status',
     };
 
     localStorageMock.getItem.mockReturnValue('{}');
@@ -161,4 +157,3 @@ describe('Mapping Resolution', () => {
     expect(result.allMapped).toBe(false);
   });
 });
-

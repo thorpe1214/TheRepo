@@ -52,7 +52,7 @@ test.describe('Revenue Management System - Smoke Tests', () => {
     // Verify occupancy stats updated (indicating data loaded)
     const occupancyElement = page.locator('text=Trending Occupancy').locator('..').locator('.big');
     await expect(occupancyElement).toBeVisible({ timeout: 5000 });
-    
+
     // Verify stats are not zero (data was loaded)
     const occupancyText = await occupancyElement.textContent();
     expect(occupancyText).not.toBe('0.00%');

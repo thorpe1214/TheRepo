@@ -318,7 +318,7 @@
       if (typeof process !== 'undefined' && process.env?.STRICT_MAPPING === '1') {
         return true;
       }
-      
+
       // Check localStorage setting, default to true for property-based approach
       const setting = localStorage.getItem('strictMappingEnabled');
       return setting === '1' || setting === 'true' || setting === null; // null = default true
@@ -399,12 +399,12 @@
       if (!profile || typeof profile !== 'object') {
         throw new Error('Invalid property profile object');
       }
-      
+
       // Validate required fields
       if (!profile.floorplanCatalog || !Array.isArray(profile.floorplanCatalog)) {
         throw new Error('Property profile must have floorplanCatalog array');
       }
-      
+
       localStorage.setItem('propertyProfile', JSON.stringify(profile));
       console.log('[RM] Saved property profile:', profile);
       return true;
@@ -427,30 +427,33 @@
       propertyId = 'default-property',
       propertyName = 'Property',
       createdBy = 'admin',
-      description = 'Property floorplan catalog'
+      description = 'Property floorplan catalog',
     } = options;
 
     // Extract floorplan catalog from CSV
-    const floorplanCatalog = csvData.rows?.map(row => {
-      const fp = row.Floorplan || row.floorplan;
-      return fp ? String(fp).trim() : null;
-    }).filter(Boolean) || [];
-    
+    const floorplanCatalog =
+      csvData.rows
+        ?.map(row => {
+          const fp = row.Floorplan || row.floorplan;
+          return fp ? String(fp).trim() : null;
+        })
+        .filter(Boolean) || [];
+
     const uniqueFloorplans = [...new Set(floorplanCatalog)];
 
     // Extract floorplan details (name, bedrooms, units)
     const floorplanDetails = {};
     uniqueFloorplans.forEach(fpCode => {
-      const fpRows = csvData.rows?.filter(row => 
-        (row.Floorplan || row.floorplan) === fpCode
-      ) || [];
-      
+      const fpRows = csvData.rows?.filter(row => (row.Floorplan || row.floorplan) === fpCode) || [];
+
       floorplanDetails[fpCode] = {
         name: fpCode, // Default to code, can be enhanced later
         bedrooms: inferBedroomsFromCode(fpCode, fpCode),
         units: fpRows.length,
-        sampleRent: fpRows.length > 0 ? 
-          parseFloat(fpRows[0]['Current Rent'] || fpRows[0]['current rent'] || 0) : 0
+        sampleRent:
+          fpRows.length > 0
+            ? parseFloat(fpRows[0]['Current Rent'] || fpRows[0]['current rent'] || 0)
+            : 0,
       };
     });
 
@@ -466,8 +469,8 @@
       locked: true, // Property profiles are locked by default
       metadata: {
         sampleRowCount: csvData.rows?.length || 0,
-        totalUnits: Object.values(floorplanDetails).reduce((sum, fp) => sum + fp.units, 0)
-      }
+        totalUnits: Object.values(floorplanDetails).reduce((sum, fp) => sum + fp.units, 0),
+      },
     };
 
     return profile;
@@ -520,35 +523,35 @@
       const fpMapKey = `rm:fpmap:${propertyId}`;
       const savedFPMap = JSON.parse(localStorage.getItem(fpMapKey) || '{}');
       const seedFPMap = window.__seedFPMap || {};
-      
+
       // Use saved map if available, otherwise use seeds
       const activeFPMap = Object.keys(savedFPMap).length > 0 ? savedFPMap : seedFPMap;
       const source = Object.keys(savedFPMap).length > 0 ? 'profile' : 'seeds';
-      
+
       // Check if all floorplan labels are mapped
       const floorplanCol = mapping.Floorplan || mapping.floorplan;
       if (floorplanCol && csvData.rows && csvData.rows.length > 0) {
-        const uniqueFloorplanLabels = Array.from(new Set(
-          csvData.rows.map(row => row[floorplanCol]).filter(Boolean)
-        ));
-        
+        const uniqueFloorplanLabels = Array.from(
+          new Set(csvData.rows.map(row => row[floorplanCol]).filter(Boolean))
+        );
+
         const allMapped = uniqueFloorplanLabels.every(label => activeFPMap[label]);
-        
+
         return {
           mapping: mapping,
           source: source,
           allMapped: allMapped,
           unmappedLabels: uniqueFloorplanLabels.filter(label => !activeFPMap[label]),
-          floorplanLabels: uniqueFloorplanLabels
+          floorplanLabels: uniqueFloorplanLabels,
         };
       }
-      
+
       return {
         mapping: mapping,
         source: 'auto',
         allMapped: true,
         unmappedLabels: [],
-        floorplanLabels: []
+        floorplanLabels: [],
       };
     } catch (e) {
       console.error('[RM] Failed to resolve mapping:', e);
@@ -557,10 +560,10 @@
         source: 'auto',
         allMapped: false,
         unmappedLabels: [],
-        floorplanLabels: []
+        floorplanLabels: [],
       };
     }
   }
-  
+
   window.resolveMappingFromSeedsOrProfile = resolveMappingFromSeedsOrProfile;
 })();

@@ -3,13 +3,13 @@
  * Tests strict mapping validation logic
  */
 
-const {
+import {
   normalizeHeaders,
   compareProfile,
   compareCatalog,
   validateStrictMapping,
   formatValidationError,
-} = require('../src/js/validation.js');
+} from '../src/js/validation.js';
 
 describe('Validation Functions', () => {
   describe('normalizeHeaders', () => {
