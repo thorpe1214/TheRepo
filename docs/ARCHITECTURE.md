@@ -4,6 +4,61 @@
 
 The Revenue Management system is structured with clear separation between different pricing components to maintain modularity and prevent cross-contamination of logic.
 
+## Seeded Single-Property Mode
+
+### Overview
+
+The seeded single-property mode provides deterministic initialization for automated testing and consistent operations. When localStorage is empty, the system automatically loads pre-configured property setup and floorplan mappings from code seeds.
+
+### Seed Components
+
+**Property Setup Seeds** (`window.__seedPropertySetup`):
+- Property ID and name (thorpe-gardens)
+- Floorplan catalog with codes, names, bedrooms, and unit counts
+- Metadata including total units and configuration flags
+
+**Floorplan Mapping Seeds** (`window.__seedFPMap`):
+- Maps CSV floorplan labels to internal codes
+- Covers common variations (e.g., "Studio" → "S0", "1x1 A" → "A1")
+- Provides fallback mappings for different naming conventions
+
+### Seed Loading Process
+
+1. **Bootstrap Check**: On app initialization, `loadSeedsIfEmpty()` checks localStorage
+2. **Property Setup**: If `rm:propertySetup:floorplans` is missing, writes seeds to localStorage
+3. **Property Profile**: Creates validation profile for strict mapping
+4. **FP Mapping**: If `rm:fpmap:thorpe-gardens` is missing, writes seed mappings
+5. **Session Tracking**: Tracks whether seeds were used in current session
+
+### Storage Keys
+
+- `rm:propertySetup:floorplans` - Property configuration
+- `propertyProfile` - Validation profile for strict mapping
+- `rm:fpmap:thorpe-gardens` - Floorplan label mappings
+
+### Operator Transition
+
+**From Seeds to Custom Mapping**:
+1. First upload uses seeds automatically
+2. User edits mapping → localStorage overrides seeds
+3. Subsequent uploads use saved mappings
+4. Seeds are ignored once localStorage is populated
+
+**Benefits**:
+- Deterministic testing environment
+- No manual setup required for first-time users
+- Consistent floorplan mappings across sessions
+- Clear separation between seeded and custom configurations
+
+### Confirm Overlay
+
+After auto-mapping, a confirm overlay displays:
+- Detected CSV columns
+- Mapping source (seeds vs saved)
+- Option to proceed or edit mapping
+
+This ensures users understand what was auto-mapped and can verify before proceeding.
+
 ## Component Architecture
 
 ### Floorplan Pricing (`pricing-fp.js`)

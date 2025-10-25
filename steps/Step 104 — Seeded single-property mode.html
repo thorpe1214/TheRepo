@@ -137,6 +137,10 @@
   function npSubtabKey(){ return 'np_subtab_v1'; }
   function getNPSubtab(){ try{ return localStorage.getItem(npSubtabKey()) || 'fp'; }catch(e){ return 'fp'; } }
   function setNPSubtab(v){ try{ localStorage.setItem(npSubtabKey(), v==='unit'?'unit':'fp'); }catch(e){} }
+  
+  // Export for pricing-unit.js module
+  window.getNPSubtab = getNPSubtab;
+  window.setNPSubtab = setNPSubtab;
 
   // Unit pricing function is now externalized to ../src/js/pricing-unit.js
   function renderUnitPricingSection_DISABLED(){
@@ -382,10 +386,7 @@
     return `<table class="basic" style="width:100%"><thead><tr><th>Term</th><th>Proposed</th><th>Δ $</th><th>Δ %</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
   
-  // Sub-tab wiring for New Pricing (Floorplan | Unit)
-  function npSubtabKey(){ return 'np_subtab_v1'; }
-  function getNPSubtab(){ try{ return localStorage.getItem(npSubtabKey()) || 'fp'; }catch(e){ return 'fp'; } }
-  function setNPSubtab(v){ try{ localStorage.setItem(npSubtabKey(), v==='unit'?'unit':'fp'); }catch(e){} }
+  // Sub-tab wiring for New Pricing (Floorplan | Unit) - deduplicated
 
   function applyNPSubtabUI(sub){
     const bar=document.getElementById('npSubtabBar'); if(!bar) return;
@@ -405,7 +406,13 @@
       const open=document.querySelector('tr.unit-details');
       if(open){ const btn=document.querySelector('button.unit-exp[aria-expanded="true"]'); if(btn){ btn.setAttribute('aria-expanded','false'); btn.textContent='▸'; } try{ open.parentNode.removeChild(open); }catch(e){} window.__unitExpKey=null; }
     }
-    if (sub==='unit'){ try{ if (typeof window.__renderUnitPricingSection==='function') window.__renderUnitPricingSection(); }catch(e){} }
+    if (sub==='unit'){ 
+      try{ 
+        // Ensure data is normalized before rendering unit pricing section
+        if (typeof window.normalizeRentRoll === 'function') window.normalizeRentRoll();
+        if (typeof window.__renderUnitPricingSection==='function') window.__renderUnitPricingSection(); 
+      }catch(e){} 
+    }
   }
 
   function wireNPSubtabs(){
@@ -604,10 +611,59 @@
     if (clr) clr.addEventListener('click', doClear);
     if (clrLegacy) clrLegacy.addEventListener('click', doClear);
   }
+  
+  // Safe fallback renderer for Unit tab
+  function renderUnitPricingSection_DISABLED() {
+    console.warn('[RM] Unit pricing section renderer not available - using fallback');
+    const container = document.getElementById('unit-pricing-container');
+    if (container) {
+      container.innerHTML = `
+        <div class="note" style="padding: 20px; text-align: center; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px;">
+          <h4>Unit Pricing Not Available</h4>
+          <p>Please upload a rent roll and run pricing to enable unit-level details.</p>
+        </div>
+      `;
+    }
+  }
+  
+  // Ensure safe fallback is available
+  if (typeof window.__renderUnitPricingSection === 'undefined') {
+    window.__renderUnitPricingSection = renderUnitPricingSection_DISABLED;
+  }
+
+  // Wire confirm overlay buttons
+  document.addEventListener('DOMContentLoaded', () => {
+    const confirmBtn = document.getElementById('confirmUpload');
+    const editBtn = document.getElementById('editMapping');
+    const overlay = document.getElementById('confirmOverlay');
+    
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => {
+        overlay.style.display = 'none';
+        // Proceed with normal flow
+        setTimeout(() => {
+          try {
+            if (typeof setHasUpload === 'function') setHasUpload();
+            renderFPMapCard();
+            normalizeRentRoll();
+            if (typeof window.refreshChartsFromRentRoll === 'function') window.refreshChartsFromRentRoll();
+          } catch (e) {}
+        }, 60);
+      });
+    }
+    
+    if (editBtn) {
+      editBtn.addEventListener('click', () => {
+        overlay.style.display = 'none';
+        // Show mapping table for editing
+        document.getElementById('automap').style.display = 'block';
+      });
+    }
+  });
 
   // Wire on load and on mapping confirm
   document.addEventListener('DOMContentLoaded', ()=>{ try{ renderFPMapCard(); bindFPMapButtons(); }catch(e){} });
-  const cm=document.getElementById('confirmMapping'); if (cm){ cm.addEventListener('click', ()=> setTimeout(()=>{ try{ if (typeof setHasUpload==='function') setHasUpload(); captureFPLabelsFromUpload(); }catch(e){} }, 60)); }
+  const cm=document.getElementById('confirmMapping'); if (cm){ cm.addEventListener('click', ()=> setTimeout(()=>{ try{ if (typeof setHasUpload==='function') setHasUpload(); captureFPLabelsFromUpload(); showConfirmOverlay(); }catch(e){} }, 60)); }
 })();
 </script>
 
@@ -644,6 +700,9 @@
       }
     }catch(e){}
   }
+  
+  // Expose normalizeRentRoll to window object for unit pricing tab
+  window.normalizeRentRoll = normalizeRentRoll;
 
   document.addEventListener('DOMContentLoaded', ()=>{ try{ renderFPMapCard(); }catch(e){} try{ normalizeRentRoll(); }catch(e){} });
   const cm = document.getElementById('confirmMapping'); if (cm) cm.addEventListener('click', ()=> setTimeout(()=>{ try{ if (typeof setHasUpload==='function') setHasUpload(); renderFPMapCard(); normalizeRentRoll(); if (typeof window.refreshChartsFromRentRoll==='function') window.refreshChartsFromRentRoll(); }catch(e){} }, 60));
@@ -1009,6 +1068,19 @@
           <div id="mapTable" style="overflow:auto"></div>
           <div id="validationBox" class="note"></div>
           <button id="confirmMapping" class="btn" style="margin-top:8px">Confirm Mapping</button>
+        
+        <!-- Confirm Overlay -->
+        <div id="confirmOverlay" class="overlay" style="display:none;">
+          <div class="overlay-content" style="max-width:500px;">
+            <h3>Confirm Upload</h3>
+            <div id="detectedColumns" class="note" style="margin:12px 0;"></div>
+            <div id="mappingStatus" class="note" style="margin:12px 0;"></div>
+            <div class="actions" style="margin-top:16px; gap:8px;">
+              <button id="confirmUpload" class="btn">Confirm</button>
+              <button id="editMapping" class="btn secondary">Edit Mapping</button>
+            </div>
+          </div>
+        </div>
       </div>
       </div>
       <div class="home-only">
@@ -1052,17 +1124,16 @@
               <div class="sub">
                 Today <span data-kpi="todayOcc">—</span> • Target <span data-kpi="targetOcc">—</span>
                 <span class="pill neutral">Occ + Preleased − On-Notice</span>
-                <br><small data-kpi="trendDirection">—</small>
-              </div>
-            </div>
+      </div>
+      </div>
 
       
 
-            <!-- Revenue at Risk -->
-            <div class="tile" id="kpi_revenue_risk" style="cursor:pointer">
-              <h3>Revenue at Risk</h3>
-              <div class="big" data-kpi="revenueRisk">—</div>
-              <div class="sub">from renewals + vacancies</div>
+            <!-- Pacing to Target -->
+            <div class="tile" id="kpi_pacing_gap">
+              <h3>Pacing to Target</h3>
+              <div class="big" data-kpi="gapPP">—</div>
+              <div class="sub">Need <span data-kpi="homesNeeded">—</span> homes</div>
             </div>
 
             <!-- Undecided Renewals (30d) -->
@@ -1072,11 +1143,10 @@
               <div class="sub">of <span data-kpi="expiring30d">—</span> expiring</div>
             </div>
 
-            <!-- Vacancy Age Alert -->
-            <div class="tile" id="kpi_vacancy_age" style="cursor:pointer">
-              <h3>Vacancy Age Alert</h3>
-              <div class="big"><span data-kpi="agedVacant30d">—</span></div>
-              <div class="sub">units vacant ≥30 days</div>
+            <div class="tile hidden-soft" id="kpi_velocity_7d">
+              <h3>Leasing Pacing (7d)</h3>
+              <div class="big"><span data-kpi="pacingPP">—</span></div>
+              <div class="sub"><span data-kpi="approvals7d">—</span> approvals • conv <span data-kpi="convPct">—</span></div>
             </div>
           </div>
 
@@ -1271,6 +1341,62 @@
             <strong>Example discounts:</strong>
             <div id="vacancyAgeExamples"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- Data Settings (Property Profile) -->
+      <div class="card" id="dataSettingsCard">
+        <h2 data-tab-scope="settings" style="margin:0">Property Configuration</h2>
+        <div class="note" style="margin:8px 0;">
+          <strong>Thorpe Gardens Property:</strong> Floorplans are locked for consistent operations. Operators can adjust pricing levers (bands, floors/ceilings, buffers) but cannot change floorplan catalog.
+        </div>
+        
+        <div id="propertyStatus" class="note" style="margin:12px 0; padding:12px; border-radius:8px; background:#f0f9ff; border:1px solid #0ea5e9;">
+          <div id="propertyInfo">
+            <strong>Property Status:</strong> <span id="propertyStatusText">Not configured</span><br>
+            <small id="propertyDetails">Upload a rent roll to establish property profile</small>
+          </div>
+        </div>
+        
+        <div class="setting-group" style="margin:12px 0;">
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="strictMappingEnabled" style="margin:0;" checked>
+            <span>Strict mapping mode (recommended)</span>
+          </label>
+          <div class="note" style="margin-top:4px; font-size:12px;">
+            Validates CSV headers and floorplan catalog against property profile. Required for consistent testing.
+          </div>
+        </div>
+        
+        <div id="strictMappingControls" style="margin-top:12px;">
+          <div class="setting-group">
+            <label style="display:flex; align-items:center; gap:8px;">
+              <input type="checkbox" id="catalogLockEnabled" style="margin:0;" checked>
+              <span>Lock floorplan catalog (default)</span>
+            </label>
+            <div class="note" style="margin-top:4px; font-size:12px;">
+              Floorplans are locked to property profile. Contact admin to add/remove floorplans.
+            </div>
+          </div>
+          
+          <div class="actions" style="margin-top:12px; gap:8px;">
+            <button id="unlockFloorplansBtn" class="btn secondary" type="button" style="display:none;">Temporarily Unlock Floorplans</button>
+            <button id="downloadProfileBtn" class="btn secondary" type="button" style="display:none;">Export Profile</button>
+          </div>
+          
+          <div id="profileStatus" class="note" style="margin-top:8px; display:none;">
+            <div id="profileInfo"></div>
+          </div>
+        </div>
+        
+        <div class="note" style="margin-top:12px;">
+          <strong>How it works:</strong> 
+          <ul style="margin:4px 0; padding-left:16px;">
+            <li><strong>Pre-configured:</strong> Thorpe Gardens property profile is built-in</li>
+            <li><strong>Operator Control:</strong> Adjust pricing levers (bands, floors, buffers, etc.)</li>
+            <li><strong>Consistent Testing:</strong> All rent rolls must match Thorpe Gardens floorplans</li>
+            <li><strong>Floorplan Changes:</strong> Contact admin to modify property configuration</li>
+          </ul>
         </div>
       </div>
 
@@ -1632,7 +1758,9 @@
   </div>
 </div>
 
+<script src="./../src/js/seeds.js"></script>
 <script src="./../src/js/pricing-helpers.js"></script>
+<script src="./../src/js/validation.js"></script>
 <script src="./../src/js/dev-guards.js"></script>
 <script src="./../src/js/pricing-unit.js"></script>
 <script src="./../src/js/pricing-fp.js"></script>
@@ -1764,11 +1892,231 @@
   ];
   const normalizeHeader=(s)=> String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
 
+  // Dashboard stats update function (defined globally for seeded mode)
+  (function(){
+    function statusStr(s){ return String(s||"").toLowerCase(); }
+    function isVacant(s){ s=statusStr(s); return s.includes("vacant"); }
+    function isNotice(s){ s=statusStr(s); return s.includes("notice"); }
+    function isOccLike(s){ s=statusStr(s); return s.startsWith("occupied") || s.includes("notice"); }
+
+    function calcTrending(rows){
+      const N = rows.length;
+      let vac=0, notices=0, preRaw=0, occ=0;
+      for(const r of rows){
+        const s = statusStr(r.Status);
+        if (isVacant(s)) vac++;
+        if (isNotice(s)) notices++;
+        if (isOccLike(s)) occ++;
+        if (r.PreleaseStart) preRaw++;
+      }
+      const pre = Math.min(preRaw, vac + notices);
+      const todayOcc = N ? (occ / N) : 0;
+      const trending = N ? ((occ + pre - notices) / N) : 0;
+      return { todayOcc, trending: Math.max(0, Math.min(1, trending)), total: N, occ, notices, pre };
+    }
+
+    function calcStrugglingFPs(rows, targetOcc){
+      const by = new Map();
+      for(const r of rows){
+        const fp = r.Floorplan || "(unknown)";
+        if (!by.has(fp)) by.set(fp, []);
+        by.get(fp).push(r);
+      }
+      const out=[];
+      for (const [fp, list] of by.entries()){
+        const t = calcTrending(list).trending;
+        if (t < targetOcc) out.push({ code: fp, trendingOcc: t });
+      }
+      out.sort((a,b)=> (a.trendingOcc - b.trendingOcc));
+      return out;
+    }
+
+    function calcStale(rows){
+      const list = rows.filter(r => (Number(r.VacantDays)||0) >= 30 && isVacant(r.Status));
+      list.sort((a,b)=> (Number(b.VacantDays)||0) - (Number(a.VacantDays)||0));
+      return list.map(r => ({
+        unit: r.UnitID || r.Unit || "—",
+        fp: r.Floorplan || "",
+        days: Number(r.VacantDays)||0,
+        fpPrice: r.Price || r.NewPrice || null,
+        hasPre: !!r.PreleaseStart
+      }));
+    }
+
+    function calcExpiring(rows){
+      const in30 = new Date(); in30.setDate(in30.getDate()+30);
+      let exp=0;
+      for(const r of rows){
+        if(!r.LeaseEnd) continue;
+        const d = new Date(r.LeaseEnd);
+        if(!isNaN(d) && d <= in30) exp++;
+      }
+      return { expiring30d: exp, undecided30d: exp };
+    }
+
+    function updateWidgetData(rows){
+      const cfg = (typeof readCfg==='function') ? readCfg() : { comfortTarget: 0.95 };
+      const t = calcTrending(rows);
+      const exp = calcExpiring(rows);
+      const stale = calcStale(rows);
+      const fps = calcStrugglingFPs(rows, cfg.comfortTarget || 0.95);
+
+      window.totalUnits = t.total;
+      window.occupiedNow = t.occ;
+      window.onNotice = t.notices;
+      window.preleased = t.pre;
+
+      window.todayOcc = t.todayOcc;
+      window.undecidedRenewals30d = exp.undecided30d;
+      window.expiring30d = exp.expiring30d;
+      window.approvals7d = window.approvals7d || 0;
+      window.strugglingFPs = fps;
+      window.staleUnits30d = stale;
+
+      if (typeof repaintStatus45 === 'function') repaintStatus45();
+    }
+
+    window.__updateStatusFromMappedRows = updateWidgetData;
+  })();
+
+  // Show confirm overlay with detected columns and mapping status (DEPRECATED in seeded mode)
+  function showConfirmOverlay() {
+    const overlay = document.getElementById('confirmOverlay');
+    const detectedColumns = document.getElementById('detectedColumns');
+    const mappingStatus = document.getElementById('mappingStatus');
+    
+    if (!overlay || !detectedColumns || !mappingStatus) return;
+    
+    // Get detected columns from rawRows
+    const cols = window.rawRows ? Object.keys(window.rawRows[0] || {}) : [];
+    const detectedCols = ['Unit', 'Status', 'CurrentRent', 'LeaseEnd', 'PreleaseStart', 'Floorplan Label'].filter(col => 
+      cols.some(c => c.toLowerCase().includes(col.toLowerCase().replace(' ', '')))
+    );
+    
+    // Check if seeds were used
+    const seedsUsed = window._seedsUsed || false;
+    const mappingSource = seedsUsed ? 'from seeds' : 'from saved mapping';
+    
+    detectedColumns.innerHTML = `
+      <strong>Detected Columns:</strong><br>
+      ${detectedCols.map(col => `• ${col}`).join('<br>')}
+    `;
+    
+    mappingStatus.innerHTML = `
+      <strong>Mapping Status:</strong> ${mappingSource}<br>
+      <small>All floorplan labels have been mapped successfully</small>
+    `;
+    
+    overlay.style.display = 'flex';
+  }
+
+  // Execute mapping confirmation (called automatically in seeded mode)
+  function executeMappingConfirmation() {
+    console.log('[RM Seeds] Executing automatic mapping confirmation');
+    
+    // Validate required fields
+    const reqMissing = targetFields.filter(tf => tf.req && !mapping[tf.key]);
+    if (reqMissing.length) {
+      alert(`Missing required fields: ${reqMissing.map(x => x.key).join(", ")}`);
+      return;
+    }
+    
+    // Map raw rows to structured format
+    mappedRows = rawRows.map(r => ({
+      UnitID:       mapping.UnitID       ? r[mapping.UnitID]       : "",
+      Floorplan:    mapping.Floorplan    ? r[mapping.Floorplan]    : "",
+      Bedrooms:     mapping.Bedrooms     ? Number(r[mapping.Bedrooms]) : NaN,
+      Status:       (mapping.Status      ? String(r[mapping.Status]) : "").toLowerCase(),
+      CurrentRent:  mapping.CurrentRent  ? Number(r[mapping.CurrentRent]) : NaN,
+      LeaseEnd:     mapping.LeaseEnd     ? r[mapping.LeaseEnd]     : "",
+      PreleaseStart:mapping.PreleaseStart? r[mapping.PreleaseStart]: "",
+      VacantDays:   mapping.VacantDays   ? Number(r[mapping.VacantDays]) : 0,
+      MoveInDate:   mapping.MoveInDate   ? r[mapping.MoveInDate]   : "",
+      AmenityAdj:   mapping.AmenityAdj   ? Number(r[mapping.AmenityAdj]) : 0
+    }));
+    
+    // Store globally
+    window.mappedRows = mappedRows;
+    
+    // Set upload flag
+    try { 
+      if (typeof window.setHasUpload === 'function') window.setHasUpload(); 
+    } catch(e) {
+      console.error('[RM Seeds] Error setting upload flag:', e);
+    }
+    
+    // Trigger related updates
+    try {
+      const rows = (window.propertySetup && window.propertySetup.floorplans) || [];
+      if (!rows.length) {
+        if (typeof prefillFromRentRoll === 'function') prefillFromRentRoll();
+      } else {
+        if (typeof mergeFromRentRoll === 'function') mergeFromRentRoll();
+      }
+      if (typeof window.renderFPMapCard === 'function') window.renderFPMapCard();
+      if (typeof window.autoMapFromSettings === 'function') window.autoMapFromSettings();
+      if (typeof window.__applyLockState === 'function') window.__applyLockState();
+    } catch(e) {
+      console.error('[RM Seeds] Error during post-mapping updates:', e);
+    }
+    
+    // Update dashboard stats
+    try {
+      if (typeof window.__updateStatusFromMappedRows === 'function') {
+        window.__updateStatusFromMappedRows(mappedRows);
+        console.log('[RM Seeds] Dashboard stats updated');
+      }
+    } catch(e) {
+      console.error('[RM Seeds] Error updating dashboard stats:', e);
+    }
+    
+    console.log(`[RM Seeds] ✅ Mapping confirmed - ${mappedRows.length} units loaded from Thorpe Gardens`);
+  }
+
   $("file").addEventListener("change",(e)=>{
     const f=e.target.files?.[0]; if(!f) return;
     Papa.parse(f,{header:true,skipEmptyLines:true,complete:(r)=>{
       rawRows=r.data;
       const cols=Object.keys(rawRows[0]||{});
+      
+      // PROPERTY PROFILE VALIDATION (temporarily disabled for testing)
+      const strictMode = false; // window.isStrictMappingEnabled && window.isStrictMappingEnabled();
+      if (strictMode) {
+        // Ensure Thorpe Gardens profile is initialized
+        if (window.initializeThorpeGardensProfile) {
+          window.initializeThorpeGardensProfile();
+        }
+        
+        const propertyProfile = window.loadPropertyProfile && window.loadPropertyProfile();
+        if (propertyProfile && window.RMValidation) {
+          const csvData = { headers: cols, rows: rawRows };
+          
+          // Simple floorplan validation - just check if CSV has Thorpe Gardens floorplans
+          const csvFloorplans = rawRows.map(row => row.Floorplan || row.floorplan).filter(Boolean);
+          const uniqueFloorplans = [...new Set(csvFloorplans)];
+          
+          const hasValidFloorplans = propertyProfile.floorplanCatalog.every(expectedFp => 
+            uniqueFloorplans.includes(expectedFp)
+          );
+          
+          if (!hasValidFloorplans) {
+            const missingFloorplans = propertyProfile.floorplanCatalog.filter(fp => 
+              !uniqueFloorplans.includes(fp)
+            );
+            alert(`❌ Wrong Property Uploaded!\n\nThis CSV doesn't contain Thorpe Gardens floorplans.\n\nMissing floorplans: ${missingFloorplans.join(', ')}\n\nFound floorplans: ${uniqueFloorplans.join(', ')}\n\nExpected floorplans: ${propertyProfile.floorplanCatalog.join(', ')}\n\nOnly Thorpe Gardens rent rolls are accepted.`);
+            e.target.value = ''; // Clear file input
+            return;
+          }
+        } else if (propertyProfile) {
+          alert('❌ Strict mapping is enabled but validation system not available.\n\nPlease refresh the page and try again.');
+          e.target.value = ''; // Clear file input
+          return;
+        } else {
+          // No property profile - this is the first upload (admin setup)
+          console.log('[RM] First upload - will establish property profile');
+        }
+      }
+      
       mapping={};
       const lower = cols.map(c=>({orig:c, norm:normalizeHeader(c)}));
       for(const tf of targetFields){
@@ -1776,6 +2124,76 @@
         if(!best) best = lower.find(c=>tf.hints.some(h=>c.norm===normalizeHeader(h)));
         mapping[tf.key] = best ? best.orig : "";
       }
+      
+      // SEEDED FP MAPPING - Auto-map floorplan labels using seeds or saved map
+      const propertyId = window.__seedPropertySetup?.property_id || 'thorpe-gardens';
+      const fpMapKey = `rm:fpmap:${propertyId}`;
+      const savedFPMap = JSON.parse(localStorage.getItem(fpMapKey) || '{}');
+      const seedFPMap = window.__seedFPMap || {};
+      
+      // Use saved map if available, otherwise use seeds
+      const activeFPMap = Object.keys(savedFPMap).length > 0 ? savedFPMap : seedFPMap;
+      const seedsUsed = Object.keys(savedFPMap).length === 0 && Object.keys(seedFPMap).length > 0;
+      
+      // Track if seeds were used for this session
+      window._seedsUsed = seedsUsed;
+      
+      // Auto-map floorplan labels
+      const floorplanCol = mapping.Floorplan || mapping.floorplan;
+      if (floorplanCol && rawRows.length > 0) {
+        const uniqueFloorplanLabels = [...new Set(rawRows.map(row => row[floorplanCol]).filter(Boolean))];
+        let allMapped = true;
+        let unmappedLabels = [];
+        
+        // Check if all labels are mapped
+        for (const label of uniqueFloorplanLabels) {
+          if (!activeFPMap[label]) {
+            allMapped = false;
+            unmappedLabels.push(label);
+          }
+        }
+        
+        if (allMapped) {
+          // All labels mapped - proceed directly to confirmation
+          console.log('[RM Seeds] All floorplan labels mapped successfully');
+          if (seedsUsed) {
+            console.log('[RM Seeds] Using seeded FP map from Thorpe Gardens property');
+          } else {
+            console.log('[RM Seeds] Using saved FP map');
+          }
+          
+          // Store mapping and rawRows in global scope
+          window.mapping = mapping;
+          window.rawRows = rawRows;
+          
+          // Hide mapping table - no user confirmation needed in seeded mode
+          $("automap").style.display = "none";
+          
+          // Execute mapping confirmation directly (skip overlay)
+          executeMappingConfirmation();
+          return;
+        } else {
+          // Some labels unmapped - REJECT UPLOAD COMPLETELY
+          console.error('[RM Seeds] Upload rejected - unmapped floorplan labels:', unmappedLabels);
+          
+          const propertyName = window.__seedPropertySetup?.property_name || 'Thorpe Gardens';
+          alert(`❌ Wrong Property CSV\n\nThis CSV contains floorplan labels that don't match ${propertyName}:\n\n${unmappedLabels.join('\n')}\n\n${propertyName} only accepts these floorplans:\n• S0 - Studio\n• A1 - 1x1\n• B2 - 2x2\n• C3 - 3x2 Small\n\nPlease upload a ${propertyName} rent roll instead.`);
+          
+          // Reset file input to allow re-upload
+          const fileInput = $("rentRollFile");
+          if (fileInput) fileInput.value = '';
+          
+          // Hide mapping UI completely
+          $("automap").style.display = "none";
+          
+          return; // Stop processing completely
+        }
+      }
+      
+      // Store mapping and rawRows in global scope for property profile creation
+      window.mapping = mapping;
+      window.rawRows = rawRows;
+      
       renderMappingTable(cols, mapping); $("automap").style.display="block"; validateMappingPreview();
     },error:(err)=>alert("Parse error: "+err.message)});
   });
@@ -1818,94 +2236,10 @@
       if (typeof window.__applyLockState==='function') window.__applyLockState();
     }catch(e){}
 
-    (function(){
-      function statusStr(s){ return String(s||"").toLowerCase(); }
-      function isVacant(s){ s=statusStr(s); return s.includes("vacant"); }
-      function isNotice(s){ s=statusStr(s); return s.includes("notice"); }
-      function isOccLike(s){ s=statusStr(s); return s.startsWith("occupied") || s.includes("notice"); }
-
-      function calcTrending(rows){
-        const N = rows.length;
-        let vac=0, notices=0, preRaw=0, occ=0;
-        for(const r of rows){
-          const s = statusStr(r.Status);
-          if (isVacant(s)) vac++;
-          if (isNotice(s)) notices++;
-          if (isOccLike(s)) occ++;
-          if (r.PreleaseStart) preRaw++;
-        }
-        const pre = Math.min(preRaw, vac + notices);
-        const todayOcc = N ? (occ / N) : 0;
-        const trending = N ? ((occ + pre - notices) / N) : 0;
-        return { todayOcc, trending: Math.max(0, Math.min(1, trending)), total: N, occ, notices, pre };
-      }
-
-      function calcStrugglingFPs(rows, targetOcc){
-        const by = new Map();
-        for(const r of rows){
-          const fp = r.Floorplan || "(unknown)";
-          if (!by.has(fp)) by.set(fp, []);
-          by.get(fp).push(r);
-        }
-        const out=[];
-        for (const [fp, list] of by.entries()){
-          const t = calcTrending(list).trending;
-          if (t < targetOcc) out.push({ code: fp, trendingOcc: t });
-        }
-        out.sort((a,b)=> (a.trendingOcc - b.trendingOcc));
-        return out;
-      }
-
-      function calcStale(rows){
-        const list = rows.filter(r => (Number(r.VacantDays)||0) >= 30 && isVacant(r.Status));
-        list.sort((a,b)=> (Number(b.VacantDays)||0) - (Number(a.VacantDays)||0));
-        return list.map(r => ({
-          unit: r.UnitID || r.Unit || "—",
-          fp: r.Floorplan || "",
-          days: Number(r.VacantDays)||0,
-          fpPrice: r.Price || r.NewPrice || null,
-          hasPre: !!r.PreleaseStart
-        }));
-      }
-
-      function calcExpiring(rows){
-        const in30 = new Date(); in30.setDate(in30.getDate()+30);
-        let exp=0;
-        for(const r of rows){
-          if(!r.LeaseEnd) continue;
-          const d = new Date(r.LeaseEnd);
-          if(!isNaN(d) && d <= in30) exp++;
-        }
-        return { expiring30d: exp, undecided30d: exp };
-      }
-
-      function updateWidgetData(rows){
-        const cfg = (typeof readCfg==='function') ? readCfg() : { comfortTarget: 0.95 };
-        const t = calcTrending(rows);
-        const exp = calcExpiring(rows);
-        const stale = calcStale(rows);
-        const fps = calcStrugglingFPs(rows, cfg.comfortTarget || 0.95);
-
-        window.totalUnits = t.total;
-        window.occupiedNow = t.occ;
-        window.onNotice = t.notices;
-        window.preleased = t.pre;
-
-        window.todayOcc = t.todayOcc;
-        window.undecidedRenewals30d = exp.undecided30d;
-        window.expiring30d = exp.expiring30d;
-        window.approvals7d = window.approvals7d || 0;
-        window.strugglingFPs = fps;
-        window.staleUnits30d = stale;
-
-        if (typeof repaintStatus45 === 'function') repaintStatus45();
-      }
-
-      window.__updateStatusFromMappedRows = updateWidgetData;
-    })();
-
-    // Call it immediately after mapping confirmation
-    if (Array.isArray(window.mappedRows)) { window.__updateStatusFromMappedRows(window.mappedRows); }
+    // Update dashboard stats (function now defined globally)
+    if (Array.isArray(window.mappedRows) && typeof window.__updateStatusFromMappedRows === 'function') { 
+      window.__updateStatusFromMappedRows(window.mappedRows); 
+    }
   };
 
   // Seasonality chart + over-cap calc
@@ -2448,6 +2782,12 @@ if (cfg.capAllTerms === true) {
     const {cfg,tState} = computeState();
     const fpPts = collectNewFloorplanPoints(cfg, mappedRows, tState);
     renderNewLease(cfg,mappedRows,tState);
+    // Also render unit pricing after floorplan pricing is complete
+    try{
+      if (typeof window.__renderUnitPricingSection === 'function') {
+        window.__renderUnitPricingSection();
+      }
+    }catch(e){ console.error('[RM] Error rendering unit pricing:', e); }
     // Also render Renewals so the tab is ready without manual refresh
     try{
       resetRenewBuffers();
@@ -3747,46 +4087,27 @@ document.addEventListener('DOMContentLoaded', function(){
     var undecided30d = window.undecidedRenewals30d ?? cfg.undecidedRenewals30d ?? 0;
     var expiring30d  = window.expiring30d ?? cfg.expiring30d ?? 0;
 
+    var approvals7d  = window.approvals7d ?? cfg.approvals7d ?? 0;
+    var convToMoveIn = (typeof cfg.convToMoveIn==='number') ? cfg.convToMoveIn : 0.82;
+
     var strugglingFPs = Array.isArray(window.strugglingFPs) ? window.strugglingFPs : (cfg.strugglingFPs || []);
     var staleUnits    = Array.isArray(window.staleUnits30d) ? window.staleUnits30d : (cfg.staleUnits30d || []);
 
     var trendingOcc = totalUnits>0 ? ((occupiedNow + preleased - onNotice) / totalUnits) : 0;
     trendingOcc = clamp01(trendingOcc);
 
-    // Calculate aged vacant units (≥30 days)
-    var agedVacant30d = staleUnits.length || 0;
+    var gapPP = (targetOcc - trendingOcc) * 100;
+    var homesNeeded = (gapPP>0 && totalUnits>0) ? Math.ceil(totalUnits * gapPP / 100) : 0;
 
-    // Calculate revenue at risk
-    var revenueRisk = 0;
-    try {
-      // Revenue risk from undecided renewals (30d)
-      var avgRent = 0;
-      if (Array.isArray(window.normRows) && window.normRows.length) {
-        var totalRent = 0, rentCount = 0;
-        window.normRows.forEach(r => {
-          var rent = Number(r.CurrentRent || r.Price || 0);
-          if (rent > 0) { totalRent += rent; rentCount++; }
-        });
-        avgRent = rentCount > 0 ? totalRent / rentCount : 0;
-      }
-      
-      // Risk from undecided renewals (assume 50% chance of non-renewal)
-      var renewalRisk = undecided30d * avgRent * 0.5;
-      
-      // Risk from aged vacant units (monthly rent loss)
-      var vacancyRisk = agedVacant30d * avgRent;
-      
-      revenueRisk = renewalRisk + vacancyRisk;
-    } catch (e) {
-      revenueRisk = 0;
-    }
+    var pacingPP = totalUnits>0 ? (approvals7d * convToMoveIn * (30/7) / totalUnits * 100) : 0;
 
     return {
       totalUnits, occupiedNow, onNotice, preleased,
       trendingOcc, todayOcc, targetOcc,
+      gapPP, homesNeeded,
       undecided30d, expiring30d,
-      strugglingFPs, staleUnits,
-      agedVacant30d, revenueRisk
+      approvals7d, convToMoveIn, pacingPP,
+      strugglingFPs, staleUnits
     };
   }
 
@@ -3795,47 +4116,29 @@ document.addEventListener('DOMContentLoaded', function(){
     if(!root) return;
     var s = buildStatusSummarySafe();
 
-    // Trending Occupancy with trend direction
     setText(root,'[data-kpi="trendingOcc"]', pct(s.trendingOcc, 2));
     setText(root,'[data-kpi="todayOcc"]', pct(s.todayOcc, 1));
     setText(root,'[data-kpi="targetOcc"]', pct(s.targetOcc, 0));
-    
-    // Add trend direction indicator
-    var trendDir = '';
-    if (s.trendingOcc > s.todayOcc) trendDir = '↗️ Trending up';
-    else if (s.trendingOcc < s.todayOcc) trendDir = '↘️ Trending down';
-    else trendDir = '→ Stable';
-    setText(root,'[data-kpi="trendDirection"]', trendDir);
-    
     classAs(document.getElementById('kpi_trending_occ'), (s.trendingOcc >= s.targetOcc) ? 'green' : 'red');
 
-    // Revenue at Risk (replacing pacing gap)
-    var revenueRisk = s.revenueRisk || 0;
-    setText(root,'[data-kpi="revenueRisk"]', '$' + Math.round(revenueRisk).toLocaleString());
-    classAs(document.getElementById('kpi_revenue_risk'), revenueRisk > 50000 ? 'red' : revenueRisk > 20000 ? 'yellow' : 'green');
-    var revenueTile = document.getElementById('kpi_revenue_risk');
-    if (revenueTile){
-      revenueTile.onclick = function(){ if (typeof showTab==='function') showTab('renewals'); };
-    }
+    setText(root,'[data-kpi="gapPP"]', __signedPctVal(s.gapPP, 1));
+    setText(root,'[data-kpi="homesNeeded"]', String(s.homesNeeded));
+    classAs(document.getElementById('kpi_pacing_gap'), (s.gapPP <= 0) ? 'green' : 'red');
 
-    // Undecided Renewals (30d)
     setText(root,'#kpi_undecided_30d [data-kpi="undecided30d"]', String(s.undecided30d));
     setText(root,'#kpi_undecided_30d [data-kpi="expiring30d"]', String(s.expiring30d));
     var undecRate = (s.expiring30d>0) ? (s.undecided30d/s.expiring30d) : 0;
-    classAs(document.getElementById('kpi_undecided_30d'), undecRate >= 0.40 ? 'red' : undecRate >= 0.20 ? 'yellow' : 'green');
+    classAs(document.getElementById('kpi_undecided_30d'), undecRate >= 0.40 ? 'red' : 'neutral');
     var undecTile = document.getElementById('kpi_undecided_30d');
     if (undecTile){
       undecTile.onclick = function(){ if (typeof showTab==='function') showTab('renewals'); };
     }
 
-    // Vacancy Age Alert (replacing velocity)
-    var agedVacant = s.agedVacant30d || 0;
-    setText(root,'#kpi_vacancy_age [data-kpi="agedVacant30d"]', String(agedVacant));
-    classAs(document.getElementById('kpi_vacancy_age'), agedVacant >= 5 ? 'red' : agedVacant >= 2 ? 'yellow' : 'green');
-    var vacancyTile = document.getElementById('kpi_vacancy_age');
-    if (vacancyTile){
-      vacancyTile.onclick = function(){ if (typeof showTab==='function') showTab('newPricing'); };
-    }
+    setText(root,'#kpi_velocity_7d [data-kpi="approvals7d"]', String(s.approvals7d));
+    setText(root,'#kpi_velocity_7d [data-kpi="convPct"]', (s.convToMoveIn*100).toFixed(0)+'%');
+    setText(root,'#kpi_velocity_7d [data-kpi="pacingPP"]', __signedPctVal(s.pacingPP, 1));
+    var helps = (s.gapPP>0 && s.pacingPP>0) || (s.gapPP<=0 && s.pacingPP>=0);
+    classAs(document.getElementById('kpi_velocity_7d'), helps ? 'green' : 'red');
 
     var struggling = Array.isArray(s.strugglingFPs) ? s.strugglingFPs.filter(function(fp){
       return typeof fp.trendingOcc==='number' && fp.trendingOcc < s.targetOcc;
@@ -4099,11 +4402,191 @@ document.addEventListener('DOMContentLoaded', function(){
     }
   }
   
+  // ============================================================================
+  // DATA SETTINGS UI (STRICT MAPPING)
+  // ============================================================================
+  
+  // Helper function for downloading files (DOM-dependent)
+  function downloadFile(url, filename) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  window.downloadFile = downloadFile;
+  
+  function loadDataSettings() {
+    return {
+      strictMappingEnabled: window.isStrictMappingEnabled ? window.isStrictMappingEnabled() : true, // Default ON
+      catalogLockEnabled: window.isCatalogLockEnabled ? window.isCatalogLockEnabled() : true, // Default ON
+      propertyProfile: window.loadPropertyProfile ? window.loadPropertyProfile() : null
+    };
+  }
+  
+  function saveDataSettings(settings) {
+    if (window.setStrictMappingEnabled) {
+      window.setStrictMappingEnabled(settings.strictMappingEnabled);
+    }
+    if (window.setCatalogLockEnabled) {
+      window.setCatalogLockEnabled(settings.catalogLockEnabled);
+    }
+  }
+  
+  function updateDataSettingsUI() {
+    const settings = loadDataSettings();
+    const propertyProfile = settings.propertyProfile;
+    
+    // Update checkboxes (default to checked)
+    const strictCheckbox = $('strictMappingEnabled');
+    const catalogCheckbox = $('catalogLockEnabled');
+    const controlsDiv = $('strictMappingControls');
+    const propertyStatusDiv = $('propertyStatus');
+    const propertyStatusText = $('propertyStatusText');
+    const propertyDetails = $('propertyDetails');
+    const captureBtn = $('capturePropertyProfileBtn');
+    const unlockBtn = $('unlockFloorplansBtn');
+    const downloadBtn = $('downloadProfileBtn');
+    
+    if (strictCheckbox) {
+      strictCheckbox.checked = settings.strictMappingEnabled;
+    }
+    
+    if (catalogCheckbox) {
+      catalogCheckbox.checked = settings.catalogLockEnabled;
+    }
+    
+    if (controlsDiv) {
+      controlsDiv.style.display = 'block'; // Always visible now
+    }
+    
+    // Update property status
+    if (propertyStatusDiv && propertyStatusText && propertyDetails) {
+      if (propertyProfile) {
+        propertyStatusText.textContent = 'Configured';
+        propertyDetails.textContent = `${propertyProfile.propertyName || 'Property'} - ${propertyProfile.floorplanCatalog ? propertyProfile.floorplanCatalog.length : 0} floorplans locked`;
+        propertyStatusDiv.style.background = '#f0fdf4';
+        propertyStatusDiv.style.borderColor = '#22c55e';
+        
+        if (unlockBtn) unlockBtn.style.display = 'inline-block';
+        if (downloadBtn) downloadBtn.style.display = 'inline-block';
+      } else {
+        propertyStatusText.textContent = 'Not configured';
+        propertyDetails.textContent = 'Thorpe Gardens property profile will be initialized automatically';
+        propertyStatusDiv.style.background = '#fef3c7';
+        propertyStatusDiv.style.borderColor = '#f59e0b';
+        
+        if (unlockBtn) unlockBtn.style.display = 'none';
+        if (downloadBtn) downloadBtn.style.display = 'none';
+      }
+    }
+  }
+  
+  function initDataSettingsUI() {
+    const strictCheckbox = $('strictMappingEnabled');
+    const catalogCheckbox = $('catalogLockEnabled');
+    const unlockBtn = $('unlockFloorplansBtn');
+    const downloadBtn = $('downloadProfileBtn');
+    
+    if (strictCheckbox) {
+      strictCheckbox.addEventListener('change', function() {
+        const settings = loadDataSettings();
+        settings.strictMappingEnabled = this.checked;
+        saveDataSettings(settings);
+        updateDataSettingsUI();
+      });
+    }
+    
+    if (catalogCheckbox) {
+      catalogCheckbox.addEventListener('change', function() {
+        const settings = loadDataSettings();
+        settings.catalogLockEnabled = this.checked;
+        saveDataSettings(settings);
+        updateDataSettingsUI();
+      });
+    }
+    
+    
+    if (unlockBtn) {
+      unlockBtn.addEventListener('click', function() {
+        if (confirm('⚠️ Temporarily Unlock Floorplans?\n\nThis will allow uploading CSVs with different floorplan catalogs.\n\nOnly use this for testing or special cases.\n\nContinue?')) {
+          if (window.setPropertyUnlocked) {
+            window.setPropertyUnlocked(true);
+            alert('✅ Floorplans temporarily unlocked.\n\nYou can now upload CSVs with different floorplan catalogs.');
+            updateDataSettingsUI();
+          }
+        }
+      });
+    }
+    
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', function() {
+        const profile = window.loadPropertyProfile ? window.loadPropertyProfile() : null;
+        if (profile && window.downloadRentRollProfile) {
+          window.downloadRentRollProfile(profile, 'property_profile.json');
+        }
+      });
+    }
+    
+    // Update UI on page load
+    updateDataSettingsUI();
+    
+    // Update UI when switching to Settings tab
+    const settingsTab = document.querySelector('[data-tab="settings"]');
+    if (settingsTab) {
+      settingsTab.addEventListener('click', function() {
+        setTimeout(updateDataSettingsUI, 100);
+      });
+    }
+  }
+  
+  // Initialize Thorpe Gardens property profile if not exists
+  function initializeThorpeGardensProfile() {
+    const existingProfile = window.loadPropertyProfile ? window.loadPropertyProfile() : null;
+    if (!existingProfile) {
+      const thorpeGardensProfile = {
+        version: '1.0',
+        propertyId: 'thorpe-gardens',
+        propertyName: 'Thorpe Gardens',
+        floorplanCatalog: ['S0 - Studio', 'A1 1x1', 'B2 2x2', 'C3 3x2 Small'],
+        floorplanDetails: {
+          'S0 - Studio': { name: 'Studio', bedrooms: 0, units: 50, sampleRent: 1350 },
+          'A1 1x1': { name: '1 Bedroom', bedrooms: 1, units: 100, sampleRent: 1500 },
+          'B2 2x2': { name: '2 Bedroom', bedrooms: 2, units: 40, sampleRent: 2000 },
+          'C3 3x2 Small': { name: '3 Bedroom', bedrooms: 3, units: 10, sampleRent: 2500 }
+        },
+        createdAt: new Date().toISOString(),
+        createdBy: 'system',
+        description: 'Thorpe Gardens property floorplan catalog - 200 units, 4 floorplans',
+        locked: true,
+        metadata: {
+          sampleRowCount: 200,
+          totalUnits: 200,
+          preConfigured: true
+        }
+      };
+      
+      if (window.savePropertyProfile) {
+        window.savePropertyProfile(thorpeGardensProfile);
+        console.log('[RM] Thorpe Gardens property profile initialized');
+      }
+    }
+  }
+  
+  // Expose to global scope
+  window.initializeThorpeGardensProfile = initializeThorpeGardensProfile;
+
   // Initialize when DOM is ready
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initVacancyAgeUI);
+    document.addEventListener('DOMContentLoaded', function() {
+      initializeThorpeGardensProfile();
+      initDataSettingsUI();
+    });
   } else {
-    initVacancyAgeUI();
+    initializeThorpeGardensProfile();
+    initDataSettingsUI();
   }
 })();
 </script>

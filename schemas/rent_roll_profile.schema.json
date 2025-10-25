@@ -1,0 +1,116 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Rent Roll Profile",
+  "description": "Schema for validating rent roll mapping profiles in strict mode",
+  "type": "object",
+  "required": ["version", "headers", "mapping", "createdAt"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version for future compatibility",
+      "enum": ["1.0"]
+    },
+    "headers": {
+      "type": "array",
+      "description": "Expected CSV column headers in normalized form",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "mapping": {
+      "type": "object",
+      "description": "Column mapping configuration",
+      "required": ["UnitID", "Floorplan", "Status", "CurrentRent"],
+      "properties": {
+        "UnitID": {
+          "type": "string",
+          "description": "CSV column name for unit identifier"
+        },
+        "Floorplan": {
+          "type": "string",
+          "description": "CSV column name for floorplan"
+        },
+        "Bedrooms": {
+          "type": "string",
+          "description": "CSV column name for bedrooms (optional)"
+        },
+        "Status": {
+          "type": "string",
+          "description": "CSV column name for unit status"
+        },
+        "CurrentRent": {
+          "type": "string",
+          "description": "CSV column name for current rent"
+        },
+        "LeaseEnd": {
+          "type": "string",
+          "description": "CSV column name for lease end date (optional)"
+        },
+        "PreleaseStart": {
+          "type": "string",
+          "description": "CSV column name for prelease start date (optional)"
+        },
+        "VacantDays": {
+          "type": "string",
+          "description": "CSV column name for vacant days (optional)"
+        },
+        "MoveInDate": {
+          "type": "string",
+          "description": "CSV column name for move-in date (optional)"
+        },
+        "AmenityAdj": {
+          "type": "string",
+          "description": "CSV column name for amenity adjustment (optional)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "floorplanCatalog": {
+      "type": "array",
+      "description": "Expected floorplan codes (optional, for catalog lock)",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO timestamp when profile was created"
+    },
+    "createdBy": {
+      "type": "string",
+      "description": "User or system that created the profile"
+    },
+    "propertyId": {
+      "type": "string",
+      "description": "Property identifier for multi-property support"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional profile metadata",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this profile"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tags for categorizing profiles"
+        },
+        "sampleRowCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of rows in the sample used to create this profile"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
+

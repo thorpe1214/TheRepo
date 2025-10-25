@@ -1,7 +1,183 @@
 (function () {
   // App boot wiring - DOMContentLoaded initialization and UI wiring
 
+  // ============================================================================
+  // SEED BOOTSTRAP - Load seeds when localStorage is empty
+  // ============================================================================
+  
+  function loadSeedsIfEmpty() {
+    try {
+      // Check if property setup exists
+      const existingPropertySetup = localStorage.getItem('rm:propertySetup:floorplans');
+      if (!existingPropertySetup && window.__seedPropertySetup) {
+        console.log('[RM Seeds] Loading property setup from seeds');
+        
+        // Write property setup to localStorage
+        const propertySetup = {
+          property_id: window.__seedPropertySetup.property_id,
+          property_name: window.__seedPropertySetup.property_name,
+          floorplans: window.__seedPropertySetup.floorplans,
+          metadata: window.__seedPropertySetup.metadata
+        };
+        localStorage.setItem('rm:propertySetup:floorplans', JSON.stringify(propertySetup));
+        
+        // Write property profile for validation
+        const propertyProfile = {
+          version: '1.0',
+          propertyId: window.__seedPropertySetup.property_id,
+          propertyName: window.__seedPropertySetup.property_name,
+          floorplanCatalog: window.__seedPropertySetup.floorplans.map(fp => fp.code),
+          floorplanDetails: {},
+          createdAt: new Date().toISOString(),
+          createdBy: 'seeds',
+          description: 'Seeded Thorpe Gardens property profile',
+          locked: true,
+          metadata: window.__seedPropertySetup.metadata
+        };
+        
+        // Build floorplan details
+        window.__seedPropertySetup.floorplans.forEach(fp => {
+          propertyProfile.floorplanDetails[fp.code] = {
+            name: fp.name,
+            bedrooms: fp.bedrooms,
+            units: fp.units,
+            sampleRent: 0 // Will be populated from actual data
+          };
+        });
+        
+        localStorage.setItem('propertyProfile', JSON.stringify(propertyProfile));
+      }
+      
+      // Check if FP map exists for this property
+      const propertyId = window.__seedPropertySetup?.property_id || 'thorpe-gardens';
+      const fpMapKey = `rm:fpmap:${propertyId}`;
+      const existingFPMap = localStorage.getItem(fpMapKey);
+      
+      if (!existingFPMap && window.__seedFPMap) {
+        console.log('[RM Seeds] Loading FP map from seeds');
+        localStorage.setItem(fpMapKey, JSON.stringify(window.__seedFPMap));
+      }
+      
+      return {
+        propertySetupLoaded: !existingPropertySetup,
+        fpMapLoaded: !existingFPMap
+      };
+    } catch (e) {
+      console.error('[RM Seeds] Failed to load seeds:', e);
+      return { propertySetupLoaded: false, fpMapLoaded: false };
+    }
+  }
+  
+  // Expose to global scope
+  window.loadSeedsIfEmpty = loadSeedsIfEmpty;
+
+  /**
+   * Open confirm overlay with mapping details
+   * @param {Object} options - Overlay options
+   * @param {Object} options.mapping - Column mapping
+   * @param {string} options.source - Mapping source ('seeds', 'profile', 'auto')
+   * @param {Function} options.onConfirm - Callback when confirmed
+   */
+  function openConfirmOverlay(options) {
+    try {
+      const { mapping, source, onConfirm } = options;
+      
+      // Check if strict mode should skip overlay
+      const strictOn = window.isStrictMappingEnabled && window.isStrictMappingEnabled();
+      const skipOverlay = strictOn && localStorage.getItem('skipConfirmOverlayWhenStrict') === 'true';
+      
+      if (skipOverlay) {
+        console.log('[RM] Skipping confirm overlay in strict mode');
+        if (onConfirm) onConfirm();
+        return;
+      }
+      
+      const overlay = document.getElementById('confirmOverlay');
+      const detectedColumns = document.getElementById('detectedColumns');
+      const mappingStatus = document.getElementById('mappingStatus');
+      
+      if (!overlay || !detectedColumns || !mappingStatus) {
+        console.warn('[RM] Confirm overlay elements not found');
+        if (onConfirm) onConfirm();
+        return;
+      }
+      
+      // Build detected columns from mapping
+      const detectedCols = Object.entries(mapping)
+        .filter(([key, value]) => value && value.trim())
+        .map(([key, value]) => key);
+      
+      // Build floorplan summary
+      const csvData = { rows: window.rawRows || [] };
+      const floorplanCol = mapping.Floorplan || mapping.floorplan;
+      let floorplanSummary = '';
+      if (floorplanCol && csvData.rows.length > 0) {
+        const uniqueFloorplans = Array.from(new Set(
+          csvData.rows.map(row => row[floorplanCol]).filter(Boolean)
+        ));
+        floorplanSummary = `${uniqueFloorplans.length} floorplans: ${uniqueFloorplans.join(', ')}`;
+      }
+      
+      // Update overlay content
+      detectedColumns.innerHTML = `
+        <strong>Detected Columns:</strong><br>
+        ${detectedCols.map(col => `• ${col}`).join('<br>')}
+        ${floorplanSummary ? `<br><br><strong>Floorplans:</strong> ${floorplanSummary}` : ''}
+      `;
+      
+      const sourceText = source === 'seeds' ? 'from seeds' : 
+                        source === 'profile' ? 'from saved mapping' : 'auto-detected';
+      
+      mappingStatus.innerHTML = `
+        <strong>Mapping Status:</strong> ${sourceText}<br>
+        <small>All required columns have been mapped successfully</small>
+      `;
+      
+      // Wire confirm button
+      const confirmBtn = document.getElementById('confirmUpload');
+      if (confirmBtn) {
+        confirmBtn.onclick = () => {
+          overlay.style.display = 'none';
+          if (onConfirm) onConfirm();
+        };
+      }
+      
+      // Wire edit button
+      const editBtn = document.getElementById('editMapping');
+      if (editBtn) {
+        editBtn.onclick = () => {
+          overlay.style.display = 'none';
+          document.getElementById('automap').style.display = 'block';
+        };
+      }
+      
+      // Show overlay
+      overlay.style.display = 'flex';
+      
+      // Focus management and accessibility
+      const firstButton = confirmBtn || editBtn;
+      if (firstButton) {
+        firstButton.focus();
+      }
+      
+      // Store previous focus for restoration
+      overlay._previousFocus = document.activeElement;
+      
+    } catch (e) {
+      console.error('[RM] Failed to open confirm overlay:', e);
+      if (options.onConfirm) options.onConfirm();
+    }
+  }
+  
+  window.openConfirmOverlay = openConfirmOverlay;
+
   function initAppBoot() {
+    // Load seeds if localStorage is empty
+    const seedResult = loadSeedsIfEmpty();
+    if (seedResult.propertySetupLoaded || seedResult.fpMapLoaded) {
+      console.log('[RM Seeds] Seeds loaded successfully');
+    }
+    
     // Compute tab mapping
     function cardFromHeading(h2) {
       // walk up to the enclosing .card

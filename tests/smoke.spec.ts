@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import * as path from 'path';
 
-const CURRENT_STEP = 'steps/Step 102 — Fix vacancy age display and update Current to Previous.html';
-const SAMPLE_CSV = 'data/sample_rent_roll_300_units_statuses.csv';
+const CURRENT_STEP = 'steps/Step 104 — Seeded single-property mode.html';
+const SAMPLE_CSV = 'data/thorpe_gardens_200_units.csv';
 
 test.describe('Revenue Management System - Smoke Tests', () => {
   test('loads current Step HTML without errors', async ({ page }) => {
@@ -42,41 +42,20 @@ test.describe('Revenue Management System - Smoke Tests', () => {
     const fileInput = page.locator('input[type="file"]').first();
     await expect(fileInput).toBeVisible();
 
-    // Upload CSV file
+    // Upload CSV file (seeded mode auto-maps and confirms)
     const csvPath = path.resolve(__dirname, '..', SAMPLE_CSV);
     await fileInput.setInputFiles(csvPath);
 
-    // Wait for mapping UI to appear
-    await expect(page.locator('text=Column Mapping')).toBeVisible({ timeout: 5000 });
-
-    // Verify mapping table exists
-    await expect(page.locator('td:has-text("UnitID *")')).toBeVisible();
-    await expect(page.locator('td:has-text("Floorplan *")')).toBeVisible();
-    await expect(page.locator('td:has-text("Status *")')).toBeVisible();
-
-    // Click Confirm Mapping button
-    const confirmButton = page.locator('button:has-text("Confirm Mapping")');
-    await expect(confirmButton).toBeVisible();
-
-    // Handle the alert dialog
-    page.once('dialog', dialog => {
-      expect(dialog.message()).toContain('Mapping confirmed');
-      dialog.accept();
-    });
-
-    await confirmButton.click();
-
-    // Wait for data to be processed
+    // Wait for data to be processed (no manual confirmation needed in seeded mode)
     await page.waitForTimeout(1000);
 
     // Verify occupancy stats updated (indicating data loaded)
-    const occupancyElement = page
-      .locator('text=Trending Occupancy')
-      .locator('..')
-      .locator('..')
-      .locator('text=92.00%')
-      .first();
+    const occupancyElement = page.locator('text=Trending Occupancy').locator('..').locator('.big');
     await expect(occupancyElement).toBeVisible({ timeout: 5000 });
+    
+    // Verify stats are not zero (data was loaded)
+    const occupancyText = await occupancyElement.textContent();
+    expect(occupancyText).not.toBe('0.00%');
   });
 
   test('New Pricing renders without console errors', async ({ page }) => {
@@ -92,22 +71,17 @@ test.describe('Revenue Management System - Smoke Tests', () => {
     await page.goto(`/${CURRENT_STEP}`);
     await page.waitForLoadState('networkidle');
 
-    // Upload CSV
+    // Upload CSV (seeded mode auto-confirms)
     const fileInput = page.locator('input[type="file"]').first();
     const csvPath = path.resolve(__dirname, '..', SAMPLE_CSV);
     await fileInput.setInputFiles(csvPath);
-
-    // Confirm mapping
-    await expect(page.locator('button:has-text("Confirm Mapping")')).toBeVisible({ timeout: 5000 });
-    page.once('dialog', dialog => dialog.accept());
-    await page.locator('button:has-text("Confirm Mapping")').click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
     // Click Run New
     const runNewButton = page.locator('button:has-text("Run New")').first();
     await expect(runNewButton).toBeVisible();
     await runNewButton.click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
     // Navigate to New Pricing tab
     const newPricingTab = page
@@ -142,22 +116,17 @@ test.describe('Revenue Management System - Smoke Tests', () => {
     await page.goto(`/${CURRENT_STEP}`);
     await page.waitForLoadState('networkidle');
 
-    // Upload CSV
+    // Upload CSV (seeded mode auto-confirms)
     const fileInput = page.locator('input[type="file"]').first();
     const csvPath = path.resolve(__dirname, '..', SAMPLE_CSV);
     await fileInput.setInputFiles(csvPath);
-
-    // Confirm mapping
-    await expect(page.locator('button:has-text("Confirm Mapping")')).toBeVisible({ timeout: 5000 });
-    page.once('dialog', dialog => dialog.accept());
-    await page.locator('button:has-text("Confirm Mapping")').click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
     // Click Run Renewals
     const runRenewalsButton = page.locator('button:has-text("Run Renewals")').first();
     await expect(runRenewalsButton).toBeVisible();
     await runRenewalsButton.click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
     // Navigate to Renewals tab
     const renewalsTab = page

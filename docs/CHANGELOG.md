@@ -52,6 +52,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **UI Consistency**: Ensured vacancy age discount styling appears correctly in unit pricing table
 - **Data Flow**: Fixed rendering logic to apply discounts during table generation
 
+### Added - Step 105: Confirm overlay + auto-map fixes
+- **Unified Mapping Hook**: Single `openConfirmOverlay()` function triggers after any successful mapping resolution
+- **Set Syntax Fixes**: Replaced `[...new Set()]` with `Array.from(new Set())` for better compatibility
+- **Renderer Standardization**: All unit pricing calls now use `window.__renderUnitPricingSection()` entry point
+- **Safe Fallback**: Guaranteed fallback renderer prevents Unit tab crashes
+- **Accessibility Features**: Focus trap, ESC key handling, and ARIA attributes for confirm overlay
+- **Strict Mode Bypass**: Optional `skipConfirmOverlayWhenStrict` setting for CI environments
+- **Enhanced Overlay Content**: Shows detected columns, floorplan summary, and mapping source
+- **Comprehensive Testing**: New Playwright tests for overlay flow and Jest tests for mapping resolution
+- **Idempotent Event Handling**: Event listeners attached once, overlay reopens cleanly on re-uploads
+- **Professional UX**: Clear mapping source indication (seeds vs saved vs auto-detected)
+
+### Added - Step 103: Thorpe Gardens property lock (pre-configured)
+- **Pre-configured Property**: Thorpe Gardens property profile built-in with 4 locked floorplans
+- **Property-Specific Validation**: Validates CSV uploads against Thorpe Gardens floorplan catalog
+- **Admin-Controlled Floorplans**: Property floorplans locked for consistent operations
+- **Operator Pricing Controls**: Clear separation between floorplan management and pricing levers
+- **Default Strict Mode**: Strict mapping and catalog lock enabled by default
+- **Property Configuration UI**: New "Property Configuration" section in Settings tab
+- **Clear Error Messages**: Specific validation errors when wrong property is uploaded
+- **Professional SaaS Approach**: Proper user roles and permissions structure
+- **Consistent Testing**: AI agents can test with same floorplan set across all runs
+- **Future-Ready**: Architecture supports multi-property expansion with dropdown selection
+
 ### Added - Step 101: UI improvements for vacancy age pricing
 - **Default Tab Selection**: "Floorplan Pricing" sub-tab active by default when "New Pricing" selected
 - **Discounted Unit Display**: Vacant units with vacancy age discounts show:

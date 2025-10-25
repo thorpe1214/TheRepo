@@ -1,7 +1,7 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  testMatch: ['**/tests/boundaries.spec.ts'],
+  testMatch: ['**/tests/*.spec.ts', '**/tests/*.spec.js'],
   moduleFileExtensions: ['ts', 'js'],
   collectCoverage: false,
   verbose: true,
