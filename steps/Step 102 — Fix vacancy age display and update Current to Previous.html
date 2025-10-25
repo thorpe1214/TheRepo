@@ -405,7 +405,13 @@
       const open=document.querySelector('tr.unit-details');
       if(open){ const btn=document.querySelector('button.unit-exp[aria-expanded="true"]'); if(btn){ btn.setAttribute('aria-expanded','false'); btn.textContent='▸'; } try{ open.parentNode.removeChild(open); }catch(e){} window.__unitExpKey=null; }
     }
-    if (sub==='unit'){ try{ if (typeof window.__renderUnitPricingSection==='function') window.__renderUnitPricingSection(); }catch(e){} }
+    if (sub==='unit'){ 
+      try{ 
+        // Ensure data is normalized before rendering unit pricing section
+        if (typeof window.normalizeRentRoll === 'function') window.normalizeRentRoll();
+        if (typeof window.__renderUnitPricingSection==='function') window.__renderUnitPricingSection(); 
+      }catch(e){} 
+    }
   }
 
   function wireNPSubtabs(){
@@ -644,6 +650,9 @@
       }
     }catch(e){}
   }
+  
+  // Expose normalizeRentRoll to window object for unit pricing tab
+  window.normalizeRentRoll = normalizeRentRoll;
 
   document.addEventListener('DOMContentLoaded', ()=>{ try{ renderFPMapCard(); }catch(e){} try{ normalizeRentRoll(); }catch(e){} });
   const cm = document.getElementById('confirmMapping'); if (cm) cm.addEventListener('click', ()=> setTimeout(()=>{ try{ if (typeof setHasUpload==='function') setHasUpload(); renderFPMapCard(); normalizeRentRoll(); if (typeof window.refreshChartsFromRentRoll==='function') window.refreshChartsFromRentRoll(); }catch(e){} }, 60));
