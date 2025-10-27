@@ -4591,6 +4591,18 @@ document.addEventListener('DOMContentLoaded', function(){
 })();
 </script>
 
+<!-- ============================================================================
+     PRICING ENGINE LOADER (Step 106)
+     ============================================================================ -->
+
+<script type="module">
+  // Load the pricing engine
+  import * as engine from '../dist/browser/src/pricing/engine.js';
+  
+  // Make engine globally available
+  window.__pricingEngine = engine;
+  console.log('[RM Step 106] Pricing engine loaded:', Object.keys(engine));
+</script>
 
 </body>
 </html>
