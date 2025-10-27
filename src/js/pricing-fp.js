@@ -286,6 +286,13 @@
         const engineResult = window.__pricingEngine.priceAllUnits({ units: unitStates, config, context });
         console.log('[RM Step 106] Engine returned', Object.keys(engineResult.floorplanPricing).length, 'floorplan results');
         
+        // PARITY COMPARISON: Log engine results for comparison
+        console.log('[RM Step 106] PARITY CHECK — Engine pricing results:');
+        for (const code in engineResult.floorplanPricing) {
+          const fp = engineResult.floorplanPricing[code];
+          console.log(`  ${code}: baseline=$${fp.baselineRent}, terms=${fp.termPricing.length}`);
+        }
+        
         // Convert engine results to __fpResults format
         const convertedResults = [];
         const fpPricing = engineResult.floorplanPricing;
@@ -351,6 +358,7 @@
       }
     } else {
       // Engine not available - use legacy path silently
+      console.log('[RM Step 106] Using legacy pricing path');
     }
     
     // Footnote about guardrail
