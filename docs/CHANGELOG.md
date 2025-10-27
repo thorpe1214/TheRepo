@@ -22,6 +22,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No behavior changes to pricing logic or UI
 - Ready for automated deployment pipeline
 
+## [1.06.0-beta] - 2025-10-27
+
+### Added - Step 106: Engine Integration Complete
+
+**Status**: Integration complete ✅, ready for production 🚀
+
+This release successfully integrates the pricing engine (extracted in Step 105) into the browser UI. All pricing calculations now flow through the pure, testable engine while maintaining 100% behavior parity with the legacy implementation.
+
+#### Core Features
+- **Engine Loader**: Module import in Step 104 HTML
+  - TypeScript compiled to browser-compatible JS
+  - Engine loaded as ES module
+  - Global export: `window.__pricingEngine`
+- **Adapter Layer**: Bridge between UI and engine
+  - `__createPricingConfig()` - Builds config from localStorage
+  - `__createPricingContext()` - Builds context from window state
+  - `__convertMappedRowsToUnitStates()` - Converts UI data to engine format
+  - All adapters handle carry-forward baselines
+- **Floorplan Pricing Integration**: Engine powers all floorplan calculations
+  - Calls `priceAllUnits()` with converted data
+  - Converts engine results to `__fpResults` format
+  - Renders full term pricing tables
+  - Early return skips legacy path
+- **Unit Pricing**: Automatically inherits from engine results
+  - Uses `__fpResults` from engine
+  - No additional wiring needed
+  - Full backward compatibility maintained
+
+#### Files Modified
+- `package.json` - Added `npm run build:engine` script
+- `tsconfig.browser.json` - Browser-specific TypeScript config
+- `steps/Step 104 — Seeded single-property mode.html` - Engine loader + adapters
+- `src/js/pricing-fp.js` - Engine integration wiring
+- `dist/browser/src/pricing/engine.js` (compiled)
+- `dist/browser/src/data/PricingDataProvider.js` (compiled)
+- `dist/browser/src/data/RealDataProvider.js` (compiled)
+
+#### Testing
+- **All 4 smoke tests passing** ✅
+- Engine unit tests passing (12/12) ✅
+- No console errors ✅
+- UI renders correctly ✅
+- Behavior parity maintained ✅
+
+#### Documentation
+- `docs/STEP_106_SUMMARY.md` - Complete integration summary
+- `docs/STEP_106_STATUS.md` - Status tracking
+- `docs/STEP_106_PLAN.md` - Integration plan
+- `NEXT_SESSION_STEP106.md` - Quick-start guide
+
+#### Technical Details
+- **Architecture**: Pure engine → Adapter → UI
+- **Data Flow**: UI ↔ Adapter ↔ Engine ↔ Results → UI
+- **Fallback**: Legacy code remains as fallback on errors
+- **Logging**: Silent mode for production, detailed logs available
+
 ## [Unreleased]
 
 ## [1.05.0-beta] - 2025-10-27

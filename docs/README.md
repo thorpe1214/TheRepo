@@ -27,7 +27,7 @@ This system is built on three core principles:
 ## Testing Baseline
 
 ### Current Baseline
-**Step 104 — Seeded single-property mode.html**
+**Step 106 — Engine Integration Complete (v1.06)**
 
 This is the current stable baseline for all manual and automated testing. Use this Step file for:
 - Manual smoke checks
@@ -42,6 +42,14 @@ This is the current stable baseline for all manual and automated testing. Use th
 - **No Confirm Overlay**: Seamless CSV upload → auto-map → auto-confirm flow
 - **Dashboard Stats**: Real-time occupancy and metrics display
 - **Carry-Forward Mode**: Previous pricing baselines saved and reused between runs
+- **Pure Pricing Engine**: All pricing calculations powered by pure, testable functions
+
+### Recent Milestones
+- **Step 106 — Engine Integration Complete**: Pricing engine powers all calculations (Oct 27, 2025)
+- **Step 105 — Pricing Engine Extraction**: Pure math functions extracted and tested (Oct 27, 2025)
+- **Step 104 — Seeded single-property mode**: Auto-loading property setup and mapping (Oct 25, 2025)
+- **Step 102 — Fix vacancy age display and update Current to Previous**: Vacancy age pricing (Oct 24, 2025)
+- **Step 96 — Inline unit detail accordion**: Improved unit pricing UX (Oct 23, 2025)
 
 ### Historical Baselines
 - **Step 102 — Fix vacancy age display and update Current to Previous**: Previous stable version
