@@ -4596,12 +4596,146 @@ document.addEventListener('DOMContentLoaded', function(){
      ============================================================================ -->
 
 <script type="module">
-  // Load the pricing engine
+  // Load the pricing engine (Step 106)
   import * as engine from '../dist/browser/src/pricing/engine.js';
   
   // Make engine globally available
   window.__pricingEngine = engine;
   console.log('[RM Step 106] Pricing engine loaded:', Object.keys(engine));
+  
+  // ============================================================================
+  // PRICING ENGINE ADAPTER
+  // ============================================================================
+  
+  /**
+   * Create PricingConfig from current settings
+   */
+  window.__createPricingConfig = function() {
+    // Read settings from localStorage
+    const comfortTarget = Number(localStorage.getItem('rm:comfort_target') || 0.95);
+    const priceResponse = localStorage.getItem('rm:price_response') || 'standard';
+    const maxWeeklyDec = Number(localStorage.getItem('rm:max_weekly_dec') || 0.05);
+    const minFloorVsCurrentRent = 0.9;
+    const referenceTerm = 14;
+    const availableTerms = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+    
+    // Get floorplan setup
+    const setupByCode = window.buildSetupByCode ? window.buildSetupByCode() : {};
+    const minGapToNextTier = {};
+    const stopDownBuffer = {};
+    
+    if (window.propertySetup && window.propertySetup.floorplans) {
+      for (const fp of window.propertySetup.floorplans) {
+        if (fp && fp.code) {
+          minGapToNextTier[fp.code] = fp.min_gap_to_next_tier_dollars || 0;
+          stopDownBuffer[fp.code] = fp.stop_down_buffer_dollars || 0;
+        }
+      }
+    }
+    
+    return {
+      priceResponse,
+      comfortTarget,
+      maxWeeklyDec,
+      minFloorVsCurrentRent,
+      minGapToNextTier,
+      stopDownBuffer,
+      referenceTerm,
+      availableTerms,
+      vacancyAgePricing: {
+        enabled: localStorage.getItem('rm:vacancy_age_enabled') === 'true',
+        discountPerDay: 0.002,
+        maxDiscount: 0.1,
+        thresholdDays: 30,
+      },
+      seasonalityEnabled: localStorage.getItem('rm:seasonality_enabled') === 'true',
+      seasonalityMultipliers: JSON.parse(
+        localStorage.getItem('rm:seasonality_multipliers') ||
+        '[1.0, 1.0, 1.05, 1.08, 1.10, 1.12, 1.10, 1.08, 1.05, 1.02, 1.0, 1.0]'
+      ),
+      trendOverridePctByFP: {},
+      flags: {
+        enableSimulation: false,
+        enableCarryForward: true,
+      },
+    };
+  };
+  
+  /**
+   * Create PricingContext from current state
+   */
+  window.__createPricingContext = function() {
+    // Build floorplan trends
+    const floorplanTrends = {};
+    const setupByCode = window.buildSetupByCode ? window.buildSetupByCode() : {};
+    const byFP = window.groupBy ? window.groupBy(window.mappedRows || [], r => r.Floorplan || '') : {};
+    
+    for (const code in setupByCode) {
+      const fp = setupByCode[code];
+      const units = byFP[code] || [];
+      const occupied = units.filter(u => u.Status && !u.Status.toLowerCase().includes('vacant')).length;
+      const total = units.length;
+      const current = total > 0 ? occupied / total : 0;
+      
+      floorplanTrends[code] = {
+        code,
+        trending: current,
+        current,
+        bandLow: (fp.band_low_pct || 93) / 100,
+        bandHigh: (fp.band_high_pct || 96) / 100,
+        bedrooms: fp.bedrooms || 0,
+      };
+    }
+    
+    // Community metrics
+    const communityMetrics = {
+      trendingOccupancy: window.__trendingOccupancy || 0,
+      currentOccupancy: window.__currentOccupancy || 0,
+      target: Number(localStorage.getItem('rm:comfort_target') || 0.95),
+    };
+    
+    // Carry-forward baselines
+    const carryForwardBaselines = {};
+    try {
+      const stored = localStorage.getItem('rm_carry_forward_baselines');
+      if (stored) {
+        const data = JSON.parse(stored);
+        if (data && data.fpBaselines) {
+          for (const code in data.fpBaselines) {
+            carryForwardBaselines[code + '_baseline'] = {
+              unitId: code + '_baseline',
+              floorplanCode: code,
+              priorApprovedRent: Number(data.fpBaselines[code]),
+              priorApprovedDate: data.at || new Date().toISOString(),
+              term: 14,
+            };
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[RM Adapter] Failed to load carry-forward baselines:', e);
+    }
+    
+    // Starting rents
+    const startingRents = {};
+    if (window.propertySetup && window.propertySetup.floorplans) {
+      for (const fp of window.propertySetup.floorplans) {
+        if (fp && fp.code) {
+          startingRents[fp.code] = fp.starting_rent || 0;
+        }
+      }
+    }
+    
+    return {
+      floorplanTrends,
+      communityMetrics,
+      carryForwardBaselines,
+      startingRents,
+      today: new Date(),
+    };
+  };
+  
+  console.log('[RM Step 106] Adapter functions loaded');
 </script>
 
 </body>
