@@ -1344,6 +1344,64 @@
         </div>
       </div>
 
+      <!-- Development Panel (Step 107) -->
+      <div class="card" id="devPanelCard" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <h2 data-tab-scope="settings" style="margin:0">🧪 Development Panel</h2>
+          <button id="devPanelToggle" class="btn xs" style="font-size:11px; opacity:0.7;">Hide Dev Panel</button>
+        </div>
+        <div class="note" style="margin:8px 0;">
+          <strong>Developer Tools:</strong> Enable simulation mode and trend overrides for testing and demos. 
+          These features are disabled by default in production.
+        </div>
+        
+        <!-- Feature Flags -->
+        <div class="setting-group" style="margin:12px 0;">
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="devEnableSimulation" style="margin:0;">
+            <span>Enable Simulation Mode</span>
+          </label>
+          <div class="note" style="margin-top:4px; font-size:12px;">
+            Run pricing against simulated unit states instead of real rent roll data.
+          </div>
+        </div>
+        
+        <div class="setting-group" style="margin:12px 0;">
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="devEnableTrendOverrides" style="margin:0;">
+            <span>Enable Trend Override Sliders</span>
+          </label>
+          <div class="note" style="margin-top:4px; font-size:12px;">
+            Adjust floorplan trends manually for controlled "what-if" scenarios.
+          </div>
+        </div>
+        
+        <!-- Trend Override Sliders -->
+        <div id="trendOverrideControls" style="display:none; margin-top:16px;">
+          <h3 style="margin:0 0 12px; font-size:1em;">Floorplan Trend Overrides</h3>
+          <div id="trendSliderContainer"></div>
+          <div class="note" style="margin-top:8px; font-size:12px;">
+            <strong>How it works:</strong> Override actual floorplan occupancy trends with manual values. 
+            The pricing engine will use these values instead of computed trends. Reset to 0 to use actual trends.
+          </div>
+        </div>
+        
+        <!-- Simulation Status -->
+        <div id="simulationStatus" style="display:none; margin-top:12px;">
+          <div class="note" style="background:#fef3c7; border:1px solid #f59e0b;">
+            <strong>Simulation Active:</strong> <span id="simStatusBadge">Ready</span><br>
+            <small>Using simulated unit states and trends</small>
+          </div>
+        </div>
+        
+        <!-- Data Source Badge -->
+        <div id="dataSourceBadge" style="margin-top:12px; display:none;">
+          <div class="badge" style="background:#0891b2; color:white;">
+            Data Source: <span id="dataSourceText">Real</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Data Settings (Property Profile) -->
       <div class="card" id="dataSettingsCard">
         <h2 data-tab-scope="settings" style="margin:0">Property Configuration</h2>
@@ -1707,6 +1765,7 @@
               <button class="btn sm active" role="tab" data-subtab="fp" aria-selected="true" tabindex="0">Floorplan Pricing</button>
               <button class="btn sm" role="tab" data-subtab="unit" aria-selected="false" tabindex="-1">Unit Pricing</button>
             </div>
+            <span id="pricingEngineBadge" class="badge" style="background:#0891b2; color:white; font-size:11px; display:none;">Engine: <span id="pricingEngineText">Loading...</span></span>
           </div>
           <div class="actions">
             <button id="runNew" class="btn primary">Run New</button>
@@ -4670,6 +4729,10 @@ document.addEventListener('DOMContentLoaded', function(){
     const setupByCode = window.buildSetupByCode ? window.buildSetupByCode() : {};
     const byFP = window.groupBy ? window.groupBy(window.mappedRows || [], r => r.Floorplan || '') : {};
     
+    // Load dev flags
+    const devFlags = window.__devFlags || {};
+    const trendOverrides = devFlags.trendOverrides || {};
+    
     for (const code in setupByCode) {
       const fp = setupByCode[code];
       const units = byFP[code] || [];
@@ -4677,9 +4740,16 @@ document.addEventListener('DOMContentLoaded', function(){
       const total = units.length;
       const current = total > 0 ? occupied / total : 0;
       
+      // Check for trend override
+      let trending = current;
+      if (trendOverrides[code] !== undefined && trendOverrides[code] !== null) {
+        trending = trendOverrides[code];
+        console.log(`[RM Step 107] Using trend override for ${code}: ${(trending * 100).toFixed(1)}%`);
+      }
+      
       floorplanTrends[code] = {
         code,
-        trending: current,
+        trending,
         current,
         bandLow: (fp.band_low_pct || 93) / 100,
         bandHigh: (fp.band_high_pct || 96) / 100,
@@ -4784,6 +4854,286 @@ document.addEventListener('DOMContentLoaded', function(){
   }
   
   console.log('[RM Step 106] Adapter functions loaded');
+</script>
+
+<!-- ============================================================================
+     DEVELOPMENT PANEL CONTROLLER (Step 107)
+     ============================================================================ -->
+
+<script>
+(function() {
+  'use strict';
+  
+  // Development panel controller
+  function initDevPanel() {
+    const devPanelCard = document.getElementById('devPanelCard');
+    const devPanelToggle = document.getElementById('devPanelToggle');
+    const enableSimCheckbox = document.getElementById('devEnableSimulation');
+    const enableTrendCheckbox = document.getElementById('devEnableTrendOverrides');
+    const trendControls = document.getElementById('trendOverrideControls');
+    const sliderContainer = document.getElementById('trendSliderContainer');
+    const simStatus = document.getElementById('simulationStatus');
+    const dataSourceBadge = document.getElementById('dataSourceBadge');
+    const dataSourceText = document.getElementById('dataSourceText');
+    
+    if (!devPanelCard || !enableSimCheckbox || !enableTrendCheckbox) {
+      console.warn('[RM Step 107] Dev panel elements not found');
+      return;
+    }
+    
+    // Show dev panel ONLY in development mode (check localStorage for dev mode)
+    const devMode = localStorage.getItem('rm:dev_mode') === 'true' || 
+                    window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1';
+    
+    if (devMode) {
+      devPanelCard.style.display = 'block';
+      console.log('[RM Step 107] Dev panel visible (development mode)');
+    } else {
+      devPanelCard.style.display = 'none';
+      console.log('[RM Step 107] Dev panel hidden (production mode)');
+    }
+    
+    // Setup toggle button
+    if (devPanelToggle) {
+      devPanelToggle.addEventListener('click', function() {
+        if (devPanelCard) {
+          const isVisible = devPanelCard.style.display !== 'none';
+          devPanelCard.style.display = isVisible ? 'none' : 'block';
+          this.textContent = isVisible ? 'Show Dev Panel' : 'Hide Dev Panel';
+          localStorage.setItem('rm:dev_panel_visible', String(!isVisible));
+          console.log('[RM Step 107] Dev panel', isVisible ? 'hidden' : 'shown');
+        }
+      });
+      
+      // Restore visibility state
+      const savedState = localStorage.getItem('rm:dev_panel_visible');
+      if (savedState === 'true' && devMode) {
+        devPanelCard.style.display = 'block';
+      }
+    }
+    
+    // Load flag states from localStorage
+    const simEnabled = localStorage.getItem('rm:dev:enable_simulation') === 'true';
+    const trendEnabled = localStorage.getItem('rm:dev:enable_trend_overrides') === 'true';
+    
+    enableSimCheckbox.checked = simEnabled;
+    enableTrendCheckbox.checked = trendEnabled;
+    
+    // Update UI based on initial state
+    updateDevPanelUI();
+    
+    // Handle simulation toggle
+    enableSimCheckbox.addEventListener('change', function() {
+      const enabled = this.checked;
+      localStorage.setItem('rm:dev:enable_simulation', String(enabled));
+      window.__devFlags = window.__devFlags || {};
+      window.__devFlags.enableSimulation = enabled;
+      updateDevPanelUI();
+      console.log('[RM Step 107] Simulation mode:', enabled ? 'ENABLED' : 'disabled');
+    });
+    
+    // Handle trend override toggle
+    enableTrendCheckbox.addEventListener('change', function() {
+      const enabled = this.checked;
+      localStorage.setItem('rm:dev:enable_trend_overrides', String(enabled));
+      window.__devFlags = window.__devFlags || {};
+      window.__devFlags.enableTrendOverrides = enabled;
+      updateDevPanelUI();
+      
+      if (enabled) {
+        buildTrendSliders();
+      } else {
+        clearTrendSliders();
+      }
+      
+      console.log('[RM Step 107] Trend overrides:', enabled ? 'ENABLED' : 'disabled');
+    });
+    
+    function updateDevPanelUI() {
+      const simActive = enableSimCheckbox.checked;
+      const trendActive = enableTrendCheckbox.checked;
+      
+      // Show/hide trend controls
+      if (trendControls) {
+        trendControls.style.display = trendActive ? 'block' : 'none';
+      }
+      
+      // Show/hide simulation status
+      if (simStatus) {
+        simStatus.style.display = simActive ? 'block' : 'none';
+      }
+      
+      // Show/hide data source badge
+      if (dataSourceBadge) {
+        dataSourceBadge.style.display = 'block';
+        if (dataSourceText) {
+          dataSourceText.textContent = simActive ? 'Simulation' : 'Real';
+        }
+      }
+    }
+    
+    function buildTrendSliders() {
+      if (!sliderContainer) return;
+      
+      // Clear existing sliders
+      sliderContainer.innerHTML = '';
+      
+      // Get floorplan setup
+      const setup = window.propertySetup || {};
+      const floorplans = setup.floorplans || [];
+      
+      if (floorplans.length === 0) {
+        sliderContainer.innerHTML = '<div class="note">No floorplans available</div>';
+        return;
+      }
+      
+      // Build sliders for each floorplan
+      floorplans.forEach(fp => {
+        const code = fp.code || '';
+        const name = fp.name || code;
+        
+        // Load stored override (0 = no override)
+        const overrideKey = `rm:dev:trend_override:${code}`;
+        const storedValue = localStorage.getItem(overrideKey);
+        const initialValue = storedValue ? parseFloat(storedValue) : 0;
+        
+        const sliderGroup = document.createElement('div');
+        sliderGroup.style.marginBottom = '12px';
+        sliderGroup.style.padding = '8px';
+        sliderGroup.style.background = '#f8f9fa';
+        sliderGroup.style.borderRadius = '6px';
+        
+        sliderGroup.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <label style="font-weight:600; font-size:14px;">${code}</label>
+            <span id="trendValue_${code}" style="font-weight:600; color:#0891b2;">${(initialValue * 100).toFixed(1)}%</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input 
+              type="range" 
+              id="trendSlider_${code}" 
+              min="0" 
+              max="1" 
+              step="0.005" 
+              value="${initialValue}"
+              style="flex:1;"
+            />
+            <button 
+              class="btn xs" 
+              data-fp-code="${code}" 
+              style="background:#dc2626; color:white;"
+            >
+              Reset
+            </button>
+          </div>
+          <div style="font-size:11px; color:#64748b; margin-top:4px;">
+            ${name} • ${initialValue === 0 ? 'No override' : 'Overridden'}
+          </div>
+        `;
+        
+        sliderContainer.appendChild(sliderGroup);
+        
+        // Setup slider event listener
+        const slider = document.getElementById(`trendSlider_${code}`);
+        const valueSpan = document.getElementById(`trendValue_${code}`);
+        
+        if (slider) {
+          slider.addEventListener('input', function() {
+            const value = parseFloat(this.value);
+            const valueStr = (value * 100).toFixed(1) + '%';
+            if (valueSpan) valueSpan.textContent = valueStr;
+            
+            // Save to localStorage
+            localStorage.setItem(overrideKey, String(value));
+            
+            // Update window flag
+            if (!window.__devFlags) window.__devFlags = {};
+            if (!window.__devFlags.trendOverrides) window.__devFlags.trendOverrides = {};
+            window.__devFlags.trendOverrides[code] = value;
+            
+            // Update tooltip
+            const group = slider.closest('div');
+            const tooltip = group?.querySelector('div:last-child');
+            if (tooltip) {
+              tooltip.innerHTML = `${name} • ${value === 0 ? 'No override' : 'Overridden'}`;
+            }
+            
+            console.log(`[RM Step 107] Trend override ${code}: ${valueStr}`);
+          });
+        }
+        
+        // Setup reset button
+        const resetBtn = sliderGroup.querySelector('[data-fp-code]');
+        if (resetBtn) {
+          resetBtn.addEventListener('click', function() {
+            const code = this.getAttribute('data-fp-code');
+            if (slider) slider.value = '0';
+            if (valueSpan) valueSpan.textContent = '0.0%';
+            localStorage.setItem(`rm:dev:trend_override:${code}`, '0');
+            if (window.__devFlags && window.__devFlags.trendOverrides) {
+              window.__devFlags.trendOverrides[code] = 0;
+            }
+            const group = this.closest('div');
+            const tooltip = group?.querySelector('div:last-child');
+            if (tooltip) {
+              const name = code.split('_')[0] || code;
+              tooltip.innerHTML = `${name} • No override`;
+            }
+            console.log(`[RM Step 107] Trend override ${code} reset`);
+            // Trigger slider input event to update display
+            if (slider) slider.dispatchEvent(new Event('input'));
+          });
+        }
+      });
+      
+      console.log(`[RM Step 107] Built ${floorplans.length} trend override sliders`);
+    }
+    
+    function clearTrendSliders() {
+      if (sliderContainer) {
+        sliderContainer.innerHTML = '';
+      }
+    }
+    
+    // Load initial sliders if enabled
+    if (trendEnabled) {
+      buildTrendSliders();
+    }
+    
+    // Initialize window flags
+    if (!window.__devFlags) window.__devFlags = {};
+    window.__devFlags.enableSimulation = simEnabled;
+    window.__devFlags.enableTrendOverrides = trendEnabled;
+    
+    // Load saved trend overrides
+    if (window.__devFlags.enableTrendOverrides) {
+      window.__devFlags.trendOverrides = {};
+      const setup = window.propertySetup || {};
+      const floorplans = setup.floorplans || [];
+      floorplans.forEach(fp => {
+        const code = fp.code || '';
+        const overrideKey = `rm:dev:trend_override:${code}`;
+        const storedValue = localStorage.getItem(overrideKey);
+        if (storedValue && !window.__devFlags.trendOverrides) {
+          window.__devFlags.trendOverrides = {};
+        }
+        if (window.__devFlags.trendOverrides) {
+          window.__devFlags.trendOverrides[code] = parseFloat(storedValue) || 0;
+        }
+      });
+    }
+    
+    console.log('[RM Step 107] Dev panel initialized');
+  }
+  
+  // Initialize on DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDevPanel);
+  } else {
+    initDevPanel();
+  }
+})();
 </script>
 
 </body>
