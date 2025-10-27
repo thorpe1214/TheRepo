@@ -255,9 +255,12 @@
     // ============================================================================
     const USE_ENGINE = window.__pricingEngine && window.__createPricingConfig && window.__createPricingContext && window.__convertMappedRowsToUnitStates;
     
+    // Initialize __fpResults array
+    window.__fpResults = Array.isArray(window.__fpResults) ? window.__fpResults : [];
+    
     if (USE_ENGINE) {
       console.log('[RM Step 106] Engine integration ACTIVE');
-      console.log('[RM Step 106] Attempting to use pure pricing engine...');
+      console.log('[RM Step 106] Using pure pricing engine for all calculations');
       
       try {
         // Convert UI data to engine format
@@ -267,17 +270,41 @@
         // Build config and context
         const config = window.__createPricingConfig();
         const context = window.__createPricingContext();
-        console.log('[RM Step 106] Config and context created:', { config, context });
         
         // Call engine
         const engineResult = window.__pricingEngine.priceAllUnits({ units: unitStates, config, context });
-        console.log('[RM Step 106] Engine returned result:', engineResult);
+        console.log('[RM Step 106] Engine returned', Object.keys(engineResult.floorplanPricing).length, 'floorplan results');
         
-        // TODO: Convert engine results to __fpResults format and use for rendering
-        // For now, fall through to legacy logic to compare outputs
-        console.warn('[RM Step 106] Engine result not yet used - legacy path will run for comparison');
+        // Convert engine results to __fpResults format
+        const convertedResults = [];
+        const fpPricing = engineResult.floorplanPricing;
+        
+        for (const code in fpPricing) {
+          const fp = fpPricing[code];
+          const s = setupByCode[code] || {};
+          const startRent = Number(s?.starting_rent ?? s?.reference_ask) || 0;
+          
+          // Use baselineRent directly from floorplan result
+          convertedResults.push({
+            code: fp.code,
+            name: fp.name,
+            startingRent: startRent,
+            referenceBase: fp.baselineRent || 0,
+            referenceTerm: fp.referenceTerm || config.referenceTerm,
+            price_ceiling_dollars: s?.price_ceiling_dollars || null,
+          });
+        }
+        
+        console.log('[RM Step 106] Converted to __fpResults format:', convertedResults.length, 'floorplans');
+        
+        // Set global results for UI rendering
+        window.__fpResults = convertedResults;
+        console.log('[RM Step 106] Engine-powered pricing complete, skipping legacy path');
+        return; // Early return - engine path complete
+        
       } catch (error) {
         console.error('[RM Step 106] Engine integration failed:', error);
+        console.log('[RM Step 106] Falling back to legacy pricing');
       }
     } else {
       console.log('[RM Step 106] Engine integration not available, using legacy pricing');
