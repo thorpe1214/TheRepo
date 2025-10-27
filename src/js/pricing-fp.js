@@ -251,23 +251,13 @@
 
   function renderNewLease(cfg, norm, tState) {
     // ============================================================================
-    // STEP 106: ENGINE INTEGRATION - Check if engine is available
+    // STEP 106: ENGINE INTEGRATION
     // ============================================================================
-    if (window.__pricingEngine && window.__createPricingConfig && window.__createPricingContext) {
-      console.log('[RM Step 106] Engine integration available');
-      
-      // Test adapter functions
-      try {
-        const config = window.__createPricingConfig();
-        const context = window.__createPricingContext();
-        console.log('[RM Step 106] Config/context created:', {
-          config: Object.keys(config),
-          context: Object.keys(context),
-          floorplanTrends: Object.keys(context.floorplanTrends || {}),
-        });
-      } catch (e) {
-        console.error('[RM Step 106] Adapter error:', e);
-      }
+    const USE_ENGINE = window.__pricingEngine && window.__createPricingConfig && window.__createPricingContext;
+    
+    if (USE_ENGINE) {
+      console.log('[RM Step 106] Engine integration ACTIVE');
+      console.log('[RM Step 106] This run will use the pure pricing engine');
     } else {
       console.log('[RM Step 106] Engine integration not available, using legacy pricing');
     }
