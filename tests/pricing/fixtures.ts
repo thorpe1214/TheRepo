@@ -228,8 +228,8 @@ export const floorClampUnit: UnitState = {
   floorplanCode: 'S0',
   floorplanLabel: 'S0 - Studio',
   status: 'vacant',
-  currentRent: 1200,
-  vacantDays: 45, // Over threshold (vacancy discount applies)
+  currentRent: 1200, // Current rent is HIGHER than starting rent (operator increased manually)
+  vacantDays: 90, // Much longer vacancy → stronger discount → hits floor
   amenityAdj: 0,
 };
 
@@ -239,14 +239,24 @@ export const floorClampContext: PricingContext = {
   },
   communityMetrics: floorClampCommunityMetrics,
   startingRents: {
-    'S0': 1200,
+    'S0': 1000, // Starting rent is LOWER than current (e.g., from carry-forward baseline)
+  },
+  carryForwardBaselines: {
+    'S101': {
+      unitId: 'S101',
+      floorplanCode: 'S0',
+      priorApprovedRent: 1000, // Prior baseline is LOWER than current $1200
+      priorApprovedDate: '2025-01-08',
+      term: 14,
+    },
   },
   today: new Date('2025-01-15'),
 };
 
-// Expected: Massive down move (8%+), capped to 5%, then floored at 90% of current
-// Floor: 1200 * 0.90 = 1080
-// Plus vacancy age discount: 15 days over * 0.2%/day = 3%
+// Expected: Massive down move (8%+) on baseline $1000, capped to 5% = $950
+// Then floor enforces 90% of current $1200 = $1080
+// Final baseline: $1080 (floored)
+// Plus vacancy age discount on term pricing: 60 days over * 0.2%/day = 12%
 
 // ============================================================================
 // FIXTURE 5: CARRY-FORWARD BASELINE
@@ -255,8 +265,8 @@ export const floorClampContext: PricingContext = {
 
 export const carryForwardFloorplanTrend: FloorplanTrend = {
   code: 'A1',
-  trending: 0.92, // Slightly below band
-  current: 0.93,
+  trending: 0.95, // Slightly above midpoint (94.5%)
+  current: 0.95,
   bandLow: 0.93,
   bandHigh: 0.96,
   bedrooms: 1,

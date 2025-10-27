@@ -83,17 +83,28 @@ function computeTrendMove(
   const k = 1.4;
   let mag = maxMove * Math.tanh(k * x); // 0..maxMove
   
-  // Community bias: amplify if community is also trending same direction
+  // Inside comfort band: apply dead zone (minimal movement to allow conversion nudge)
+  const insideBand = occ_fp >= low && occ_fp <= high;
+  if (insideBand) {
+    // Dampen trend move to 10% of normal magnitude
+    // This allows conversion steering to dominate inside the band
+    mag = mag * 0.1;
+  }
+  
+  // Community bias: amplify if community is also trending same direction (only outside band)
   const comm = context.communityMetrics;
   const deltaSitePP = (comm.trendingOccupancy - comm.target) * 100;
   let biasMult = 1.0;
   
-  if (deltaSitePP > 1 && sign > 0) {
-    // Community above target, FP above band → amplify up move
-    biasMult = 1 + Math.min(0.15 * deltaSitePP, 0.3);
-  } else if (deltaSitePP < -1 && sign < 0) {
-    // Community below target, FP below band → amplify down move
-    biasMult = 1 + Math.min(0.15 * Math.abs(deltaSitePP), 0.3);
+  if (!insideBand) {
+    // Only apply community bias outside comfort band
+    if (deltaSitePP > 1 && sign > 0) {
+      // Community above target, FP above band → amplify up move
+      biasMult = 1 + Math.min(0.15 * deltaSitePP, 0.3);
+    } else if (deltaSitePP < -1 && sign < 0) {
+      // Community below target, FP below band → amplify down move
+      biasMult = 1 + Math.min(0.15 * Math.abs(deltaSitePP), 0.3);
+    }
   }
   
   mag *= biasMult;
@@ -518,7 +529,8 @@ export function priceUnit(
   baselineRent = capResult.capped;
   
   // Step 7: Apply floor
-  const floorResult = applyFloor(baselineRent, unit.currentRent || baselineResult.baseline, config);
+  const floorInputRent = unit.currentRent || baselineResult.baseline;
+  const floorResult = applyFloor(baselineRent, floorInputRent, config);
   if (floorResult.wasFloored && floorResult.reason) {
     reasons.push(floorResult.reason);
     flags.floorClamped = true;

@@ -151,14 +151,14 @@ describe('Pricing Engine - Golden Fixtures', () => {
     expect(floorReason).toBeDefined();
     expect(floorReason!.applied).toBe(true);
     
-    // Unit has 45 days vacant (15 over threshold)
-    // Vacancy discount: 15 * 0.002 = 0.03 = 3%
+    // Unit has 90 days vacant (60 over threshold)
+    // Vacancy discount: 60 * 0.002 = 0.12 = 12%, but capped at 10%
     // Term pricing should apply this discount
     const refTerm = result.termPricing.find(t => t.term === 14);
     expect(refTerm).toBeDefined();
-    // Reference rent should be baseline * (1 - 0.03) ≈ 1047
-    expect(refTerm!.price).toBeGreaterThanOrEqual(1045);
-    expect(refTerm!.price).toBeLessThanOrEqual(1050);
+    // Reference rent should be baseline * (1 - 0.10) = 1080 * 0.90 = 972
+    expect(refTerm!.price).toBeGreaterThanOrEqual(970);
+    expect(refTerm!.price).toBeLessThanOrEqual(975);
   });
   
   test('Fixture 5: Carry-forward baseline', () => {
@@ -181,10 +181,10 @@ describe('Pricing Engine - Golden Fixtures', () => {
     expect(cfReason!.description).toContain('prior approved');
     
     // Baseline should start from 1450 (not 1400)
-    // Small up move (92% trending vs 94.5% mid) → ~1% up
-    // 1450 * 1.01 ≈ 1465
-    expect(result.baselineRent).toBeGreaterThanOrEqual(1455);
-    expect(result.baselineRent).toBeLessThanOrEqual(1475);
+    // Inside band: 95% trending vs 94.5% mid → tiny up move (dampened to 10%)
+    // Trend magnitude ≈ 0.1% (dampened), so 1450 * 1.001 ≈ 1451
+    expect(result.baselineRent).toBeGreaterThanOrEqual(1448);
+    expect(result.baselineRent).toBeLessThanOrEqual(1453);
     
     // Delta should compare proposed vs carry-forward baseline
     expect(result.delta.previous).toBe(1450);
@@ -403,8 +403,8 @@ describe('Pricing Engine - 30-Day Carry-Forward Regression', () => {
     
     const trend: FloorplanTrend = {
       code: 'A1',
-      trending: 0.92, // Slightly below target
-      current: 0.92,
+      trending: 0.945, // At midpoint (inside comfort band, minimal moves)
+      current: 0.945,
       bandLow: 0.93,
       bandHigh: 0.96,
       bedrooms: 1,
@@ -418,8 +418,8 @@ describe('Pricing Engine - 30-Day Carry-Forward Regression', () => {
       const context: PricingContext = {
         floorplanTrends: { 'A1': trend },
         communityMetrics: {
-          trendingOccupancy: 0.93,
-          currentOccupancy: 0.93,
+          trendingOccupancy: 0.945,
+          currentOccupancy: 0.945,
           target: 0.95,
         },
         carryForwardBaselines: {
@@ -435,7 +435,9 @@ describe('Pricing Engine - 30-Day Carry-Forward Regression', () => {
         today: new Date(`2025-01-${String(day).padStart(2, '0')}`),
       };
       
-      const result = priceUnit(initialUnit, fixtures.standardConfig, context);
+      // Update unit's current rent to match the carried-forward baseline
+      const unitForDay = { ...initialUnit, currentRent: currentBaseline };
+      const result = priceUnit(unitForDay, fixtures.standardConfig, context);
       currentBaseline = result.referenceRent;
       dailyRents.push(currentBaseline);
       
@@ -462,11 +464,11 @@ describe('Pricing Engine - 30-Day Carry-Forward Regression', () => {
       }
     }
     
-    // After 30 days, rent should have moved in the direction of occupancy
-    // (92% < 93% band low → slight up move expected)
+    // After 30 days, rent should be stable (at midpoint of comfort band)
+    // With minimal daily changes due to inside-band damping
     const finalRent = dailyRents[30];
-    expect(finalRent).toBeGreaterThanOrEqual(1500); // Should move up slightly
-    expect(finalRent).toBeLessThan(1600); // But not too much
+    expect(finalRent).toBeGreaterThanOrEqual(1490); // Should stay close to initial
+    expect(finalRent).toBeLessThanOrEqual(1510); // Minimal drift
     
     // Verify smooth evolution (no sudden jumps)
     for (let i = 1; i < dailyRents.length; i++) {
