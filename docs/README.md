@@ -27,7 +27,7 @@ This system is built on three core principles:
 ## Testing Baseline
 
 ### Current Baseline
-**Step 106 — Engine Integration Complete (v1.06)**
+**Step 107-alpha — Simulation Infrastructure Complete (v1.07-alpha)**
 
 This is the current stable baseline for all manual and automated testing. Use this Step file for:
 - Manual smoke checks
@@ -43,13 +43,14 @@ This is the current stable baseline for all manual and automated testing. Use th
 - **Dashboard Stats**: Real-time occupancy and metrics display
 - **Carry-Forward Mode**: Previous pricing baselines saved and reused between runs
 - **Pure Pricing Engine**: All pricing calculations powered by pure, testable functions
+- **Simulator Infrastructure**: Deterministic simulator for testing and demos (v1.07-alpha)
 
 ### Recent Milestones
+- **Step 107-alpha — Simulation Infrastructure**: Complete simulator for testing/demos (Oct 27, 2025)
 - **Step 106 — Engine Integration Complete**: Pricing engine powers all calculations (Oct 27, 2025)
 - **Step 105 — Pricing Engine Extraction**: Pure math functions extracted and tested (Oct 27, 2025)
 - **Step 104 — Seeded single-property mode**: Auto-loading property setup and mapping (Oct 25, 2025)
 - **Step 102 — Fix vacancy age display and update Current to Previous**: Vacancy age pricing (Oct 24, 2025)
-- **Step 96 — Inline unit detail accordion**: Improved unit pricing UX (Oct 23, 2025)
 
 ### Historical Baselines
 - **Step 102 — Fix vacancy age display and update Current to Previous**: Previous stable version
@@ -294,6 +295,73 @@ npx jest tests/pricing/engine.spec.ts
 ```
 
 **📖 Full Documentation**: [docs/PRICING_ENGINE.md](PRICING_ENGINE.md)
+
+---
+
+## 🎮 Simulator Infrastructure (Step 107-alpha)
+
+**Status**: Foundation complete ✅, UI integration pending 🔄
+
+Step 107 introduces a deterministic simulator for testing and demos. The simulator generates realistic unit state evolution over time and integrates seamlessly with the pricing engine.
+
+### Key Features
+- ✅ **Deterministic**: Same seed produces identical results
+- ✅ **Realistic Evolution**: 7 unit states with natural transitions
+- ✅ **Integration**: Works with pricing engine out-of-the-box
+- ✅ **Testing**: 47/47 tests passing
+- ✅ **Zero Impact**: Feature flag OFF by default
+
+### Architecture
+```
+Simulator (src/sim/simulator.ts)
+    ↓
+SimDataProvider (src/data/SimDataProvider.ts)
+    ↓
+Pricing Engine (src/pricing/engine.ts)
+    ↓
+Pricing Results
+```
+
+### States
+1. **OCCUPIED** - Unit is rented
+2. **ON_NOTICE** - Received move-out notice
+3. **ON_NOTICE_RENTED** - Notice + pre-leased
+4. **VACANT_NOT_READY** - Move-out complete, make-ready pending
+5. **VACANT_READY** - Ready for new resident
+6. **PRELEASED** - Pre-lease signed
+7. **OFFLINE** - Maintenance/renovation
+
+### Usage
+```typescript
+// Create simulator
+const provider = new SimDataProvider(12345, [
+  { code: 'A1', count: 10, startingRent: 1500 },
+]);
+
+// Advance 30 days
+provider.advanceDays(30);
+
+// Get units for pricing engine
+const units = provider.getUnits();
+
+// Get box score
+const boxScore = provider.getBoxScore();
+```
+
+### Test Results
+```bash
+npx jest tests/sim/
+# 47/47 passing ✅
+# - PRNG tests (11/11)
+# - Simulator tests (6/6)
+# - Classifier tests (12/12)
+# - SimDataProvider tests (9/9)
+# - Integration tests (2/2)
+# - Determinism tests (4/4)
+# - Demo tests (3/3)
+```
+
+**📖 Full Documentation**: [docs/STEP_107_SUMMARY.md](STEP_107_SUMMARY.md)
 
 ---
 
@@ -674,5 +742,5 @@ For questions or support, contact the development team.
 
 ---
 
-*Last Updated: October 25, 2025*  
-*Current Version: Step 104 — Seeded single-property mode (v1.04)*
+*Last Updated: October 27, 2025*  
+*Current Version: Step 107-alpha — Simulation Infrastructure (v1.07-alpha)*

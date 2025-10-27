@@ -80,6 +80,65 @@ This release successfully integrates the pricing engine (extracted in Step 105) 
 
 ## [Unreleased]
 
+## [1.07.0-alpha] - 2025-10-27
+
+### Added - Step 107-alpha: Simulation Infrastructure Complete
+
+**Status**: Foundation complete ✅, UI integration pending 🔄
+
+This release adds a complete simulator infrastructure for testing and demos. The simulator generates realistic unit state evolution over time and integrates seamlessly with the pricing engine.
+
+#### Core Features
+- **PRNG** (`src/sim/prng.ts`)
+  - Deterministic Linear Congruential Generator
+  - Seeded for reproducibility
+  - Methods: `random()`, `randomInt()`, `randomChoice()`, `randomBoolean()`
+- **Simulator** (`src/sim/simulator.ts`)
+  - Unit state machine with 7 states (OCCUPIED, ON_NOTICE, VACANT_READY, etc.)
+  - Daily tick advances unit states and dates
+  - Configurable transition probabilities per floorplan
+- **Classifier** (`src/lib/classify.ts`)
+  - `classifyUnit()` - Classify units into states
+  - `computeBoxScore()` - Aggregate occupancy metrics
+  - `getCountsByFloorplan()` - Floorplan-level counts
+- **SimDataProvider** (`src/data/SimDataProvider.ts`)
+  - Implements `PricingDataProvider` interface
+  - Provides simulated data to pricing engine
+  - Supports `advanceDays()` and `reset()`
+
+#### Test Coverage
+```bash
+npx jest tests/sim/ tests/classify/
+# 47/47 passing ✅
+# - PRNG tests (11/11)
+# - Simulator tests (6/6)
+# - Classifier tests (12/12)
+# - SimDataProvider tests (9/9)
+# - Integration tests (2/2)
+# - Determinism tests (4/4)
+# - Demo tests (3/3)
+```
+
+#### Key Features
+- **Deterministic**: Same seed produces identical results
+- **Realistic Evolution**: Natural state transitions over time
+- **Integration**: Works with pricing engine out-of-the-box
+- **Zero Impact**: Feature flag OFF by default (no production impact)
+
+#### Files Created
+- `src/sim/prng.ts`
+- `src/sim/simulator.ts`
+- `src/sim/types.ts`
+- `src/lib/classify.ts`
+- `src/data/SimDataProvider.ts`
+- `tests/sim/` (5 test files)
+- `tests/classify/` (1 test file)
+
+#### Documentation
+- `docs/STEP_107_SUMMARY.md` - Complete feature overview
+- `docs/STEP_107_PROGRESS.md` - Progress tracking
+- Updated README with simulator section
+
 ## [1.05.0-beta] - 2025-10-27
 
 ### Added - Step 105: Pricing Engine Extraction (Phase 1 Complete)
