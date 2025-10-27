@@ -269,9 +269,20 @@
     const wrap = document.getElementById('nlTables');
     wrap.innerHTML = '';
     
+    // Update badge
+    function updateEngineBadge(type, detail) {
+      const badge = document.getElementById('pricingEngineBadge');
+      const text = document.getElementById('pricingEngineText');
+      if (badge && text) {
+        badge.style.display = 'inline-block';
+        text.textContent = type + (detail ? ` (${detail})` : '');
+      }
+    }
+    
     if (USE_ENGINE) {
       console.log('[RM Step 106] Engine integration ACTIVE');
       console.log('[RM Step 106] Using pure pricing engine for all calculations');
+      updateEngineBadge('Pure Engine', 'active');
       
       try {
         // Convert UI data to engine format
@@ -355,10 +366,12 @@
       } catch (error) {
         console.error('[RM Step 106] Engine integration failed:', error);
         console.log('[RM Step 106] Falling back to legacy pricing');
+        updateEngineBadge('Legacy', 'engine error');
       }
     } else {
       // Engine not available - use legacy path silently
       console.log('[RM Step 106] Using legacy pricing path');
+      updateEngineBadge('Legacy', 'not available');
     }
     
     // Footnote about guardrail

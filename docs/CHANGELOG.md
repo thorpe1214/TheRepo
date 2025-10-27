@@ -78,6 +78,61 @@ This release successfully integrates the pricing engine (extracted in Step 105) 
 - **Fallback**: Legacy code remains as fallback on errors
 - **Logging**: Silent mode for production, detailed logs available
 
+## [1.07.0-beta] - 2025-11-06
+
+### Added - Step 107-beta: Development Panel & Trend Overrides
+
+**Status**: UI integration complete ✅, ready for production 🚀
+
+This release adds a complete development panel with trend override sliders for controlled "what-if" scenarios. All features are hidden in production and only visible on localhost.
+
+#### Core Features
+- **Development Panel** (Settings tab)
+  - Visible only on localhost (production-safe)
+  - Feature flag checkboxes for simulation and trend overrides
+  - Toggleable visibility with localStorage persistence
+  - Clear status indicators and badges
+  
+- **Trend Override Sliders**
+  - Per-floorplan sliders for manual trend control
+  - Range: 0% - 100% (0 = no override)
+  - Real-time value display
+  - Reset button per floorplan
+  - Values stored in localStorage
+  
+- **Pricing Engine Badge** (New Pricing tab)
+  - Visual indicator of active engine
+  - States: "Pure Engine (active)", "Legacy (not available)", "Legacy (engine error)"
+  - Updates automatically on each run
+  - Clear transparency about which path is being used
+
+#### Files Modified
+- `steps/Step 104 — Seeded single-property mode.html` - Dev panel UI + controller
+- `src/js/pricing-fp.js` - Badge updates + trend override integration
+- `__createPricingContext()` - Reads `window.__devFlags.trendOverrides`
+- Applied trend overrides in floorplan trends calculation
+
+#### Testing
+- **All 57 tests passing** ✅
+- Smoke tests: 4/4 passing ✅
+- Boundary tests: 11/11 passing ✅
+- Unit details: 5/5 passing ✅
+- Simulator tests: 47/47 passing ✅
+- No console errors ✅
+- UI renders correctly ✅
+
+#### Technical Details
+- **Feature Flags**: `enableSimulation`, `enableTrendOverrides`
+- **Storage**: localStorage with keys `rm:dev:*`
+- **Safety**: Auto-hide in production, localhost-only
+- **Integration**: Overrides applied in `__createPricingContext()`
+- **Fallback**: Zero impact when flags disabled
+
+#### Documentation
+- Updated `docs/README.md` with v1.07-beta features
+- Updated `docs/CHANGELOG.md` with this release
+- All features documented in inline comments
+
 ## [Unreleased]
 
 ## [1.07.0-alpha] - 2025-10-27

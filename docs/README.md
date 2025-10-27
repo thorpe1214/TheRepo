@@ -27,7 +27,7 @@ This system is built on three core principles:
 ## Testing Baseline
 
 ### Current Baseline
-**Step 107-alpha — Simulation Infrastructure Complete (v1.07-alpha)**
+**Step 107-beta — Development Panel & Trend Overrides Complete (v1.07-beta)**
 
 This is the current stable baseline for all manual and automated testing. Use this Step file for:
 - Manual smoke checks
@@ -43,9 +43,12 @@ This is the current stable baseline for all manual and automated testing. Use th
 - **Dashboard Stats**: Real-time occupancy and metrics display
 - **Carry-Forward Mode**: Previous pricing baselines saved and reused between runs
 - **Pure Pricing Engine**: All pricing calculations powered by pure, testable functions
-- **Simulator Infrastructure**: Deterministic simulator for testing and demos (v1.07-alpha)
+- **Simulator Infrastructure**: Deterministic simulator for testing and demos
+- **Development Panel**: Developer tools with trend override sliders for controlled scenarios
+- **Engine Badge**: Visual indicator showing which pricing engine is active
 
 ### Recent Milestones
+- **Step 107-beta — Development Panel & Trend Overrides**: Developer tools and trend sliders for controlled scenarios (Nov 6, 2025)
 - **Step 107-alpha — Simulation Infrastructure**: Complete simulator for testing/demos (Oct 27, 2025)
 - **Step 106 — Engine Integration Complete**: Pricing engine powers all calculations (Oct 27, 2025)
 - **Step 105 — Pricing Engine Extraction**: Pure math functions extracted and tested (Oct 27, 2025)
