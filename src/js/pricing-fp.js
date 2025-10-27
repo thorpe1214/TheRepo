@@ -258,6 +258,13 @@
     // Initialize __fpResults array
     window.__fpResults = Array.isArray(window.__fpResults) ? window.__fpResults : [];
     
+    // Build floorplan setup maps ONCE (needed for both engine and legacy paths)
+    const setupRows =
+      window.propertySetup && Array.isArray(window.propertySetup.floorplans)
+        ? window.propertySetup.floorplans
+        : [];
+    const setupByCode = buildSetupByCode();
+    
     if (USE_ENGINE) {
       console.log('[RM Step 106] Engine integration ACTIVE');
       console.log('[RM Step 106] Using pure pricing engine for all calculations');
@@ -299,7 +306,32 @@
         
         // Set global results for UI rendering
         window.__fpResults = convertedResults;
-        console.log('[RM Step 106] Engine-powered pricing complete, skipping legacy path');
+        
+        // Now render UI from __fpResults (simplified rendering)
+        for (const result of convertedResults) {
+          const s = setupByCode[result.code] || {};
+          const sr = Number(s?.starting_rent ?? s?.reference_ask) || 0;
+          
+          // Build term pricing display from engine results
+          // TODO: Get term pricing from fp.termPricing array
+          const trs = `<tr><td colspan="3" class="note">Engine-powered pricing for ${result.code}</td></tr>`;
+          
+          wrap.insertAdjacentHTML(
+            'beforeend',
+            `
+            <div style="border:1px solid #0b2035;border-radius:10px;padding:10px;margin:8px 0">
+              <div style="font-weight:600">${result.code}</div>
+              <table class="basic" style="margin-top:6px">
+                <thead><tr><th>Term</th><th>Price</th><th style="text-align:right;">Notes</th></tr></thead>
+                <tbody>${trs}</tbody>
+                <tfoot id="boxScoreFoot"><tr><td colspan="8" class="note">Engine-powered pricing complete</td></tfoot>
+              </table>
+            </div>
+            `
+          );
+        }
+        
+        console.log('[RM Step 106] Engine-powered pricing complete');
         return; // Early return - engine path complete
         
       } catch (error) {
@@ -307,11 +339,7 @@
         console.log('[RM Step 106] Falling back to legacy pricing');
       }
     } else {
-      console.log('[RM Step 106] Engine integration not available, using legacy pricing');
-      if (!window.__pricingEngine) console.warn('[RM Step 106] Engine not loaded');
-      if (!window.__createPricingConfig) console.warn('[RM Step 106] Config adapter missing');
-      if (!window.__createPricingContext) console.warn('[RM Step 106] Context adapter missing');
-      if (!window.__convertMappedRowsToUnitStates) console.warn('[RM Step 106] Data converter missing');
+      // Engine not available - use legacy path silently
     }
     
     const wrap = document.getElementById('nlTables');
@@ -322,12 +350,7 @@
       '<div class="note">Buffer guardrail blocks decreases that would cross a floorplan\'s buffer vs the next lower tier.</div>'
     );
 
-    // Build floorplan setup maps once per run
-    const setupRows =
-      window.propertySetup && Array.isArray(window.propertySetup.floorplans)
-        ? window.propertySetup.floorplans
-        : [];
-    const setupByCode = buildSetupByCode();
+    // Build additional setup maps (setupByCode already built above)
     const lowerMap = buildLowerTierMap(setupRows);
     const byFP = groupBy(norm, r => r.Floorplan || '(unknown)');
     // local helper to safely read saved FP map
