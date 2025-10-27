@@ -253,13 +253,38 @@
     // ============================================================================
     // STEP 106: ENGINE INTEGRATION
     // ============================================================================
-    const USE_ENGINE = window.__pricingEngine && window.__createPricingConfig && window.__createPricingContext;
+    const USE_ENGINE = window.__pricingEngine && window.__createPricingConfig && window.__createPricingContext && window.__convertMappedRowsToUnitStates;
     
     if (USE_ENGINE) {
       console.log('[RM Step 106] Engine integration ACTIVE');
-      console.log('[RM Step 106] This run will use the pure pricing engine');
+      console.log('[RM Step 106] Attempting to use pure pricing engine...');
+      
+      try {
+        // Convert UI data to engine format
+        const unitStates = window.__convertMappedRowsToUnitStates();
+        console.log(`[RM Step 106] Converted ${unitStates.length} units to engine format`);
+        
+        // Build config and context
+        const config = window.__createPricingConfig();
+        const context = window.__createPricingContext();
+        console.log('[RM Step 106] Config and context created:', { config, context });
+        
+        // Call engine
+        const engineResult = window.__pricingEngine.priceAllUnits({ units: unitStates, config, context });
+        console.log('[RM Step 106] Engine returned result:', engineResult);
+        
+        // TODO: Convert engine results to __fpResults format and use for rendering
+        // For now, fall through to legacy logic to compare outputs
+        console.warn('[RM Step 106] Engine result not yet used - legacy path will run for comparison');
+      } catch (error) {
+        console.error('[RM Step 106] Engine integration failed:', error);
+      }
     } else {
       console.log('[RM Step 106] Engine integration not available, using legacy pricing');
+      if (!window.__pricingEngine) console.warn('[RM Step 106] Engine not loaded');
+      if (!window.__createPricingConfig) console.warn('[RM Step 106] Config adapter missing');
+      if (!window.__createPricingContext) console.warn('[RM Step 106] Context adapter missing');
+      if (!window.__convertMappedRowsToUnitStates) console.warn('[RM Step 106] Data converter missing');
     }
     
     const wrap = document.getElementById('nlTables');
