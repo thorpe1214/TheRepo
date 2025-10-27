@@ -1,8 +1,8 @@
 /**
  * TEST FIXTURES FOR PRICING ENGINE
- * 
+ *
  * Purpose: Provide realistic test data for pricing engine tests.
- * 
+ *
  * Fixtures include:
  * - Unit states (various occupancy scenarios)
  * - Floorplan trends (high/low occupancy, inside/outside bands)
@@ -29,27 +29,27 @@ export const standardConfig: PricingConfig = {
   bandLow: 0.93,
   bandHigh: 0.96,
   maxWeeklyDec: 0.05,
-  minFloorVsCurrentRent: 0.90,
+  minFloorVsCurrentRent: 0.9,
   minGapToNextTier: {
-    'S0': 100,
-    'A1': 150,
-    'B2': 100,
+    S0: 100,
+    A1: 150,
+    B2: 100,
   },
   stopDownBuffer: {
-    'S0': 50,
-    'A1': 75,
-    'B2': 50,
+    S0: 50,
+    A1: 75,
+    B2: 50,
   },
   referenceTerm: 14,
   availableTerms: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
   vacancyAgePricing: {
     enabled: true,
     discountPerDay: 0.002,
-    maxDiscount: 0.10,
+    maxDiscount: 0.1,
     thresholdDays: 30,
   },
   seasonalityEnabled: true,
-  seasonalityMultipliers: [1.0, 1.0, 1.05, 1.08, 1.10, 1.12, 1.10, 1.08, 1.05, 1.02, 1.0, 1.0],
+  seasonalityMultipliers: [1.0, 1.0, 1.05, 1.08, 1.1, 1.12, 1.1, 1.08, 1.05, 1.02, 1.0, 1.0],
   trendOverridePctByFP: {}, // All zeros (no simulator overrides)
   flags: {
     enableSimulation: false,
@@ -72,7 +72,7 @@ export const highVacancyFloorplanTrend: FloorplanTrend = {
 };
 
 export const highVacancyCommunityMetrics: CommunityMetrics = {
-  trendingOccupancy: 0.80, // Community also low
+  trendingOccupancy: 0.8, // Community also low
   currentOccupancy: 0.82,
   target: 0.95,
 };
@@ -89,11 +89,11 @@ export const highVacancyUnit: UnitState = {
 
 export const highVacancyContext: PricingContext = {
   floorplanTrends: {
-    'A1': highVacancyFloorplanTrend,
+    A1: highVacancyFloorplanTrend,
   },
   communityMetrics: highVacancyCommunityMetrics,
   startingRents: {
-    'A1': 1500,
+    A1: 1500,
   },
   today: new Date('2025-01-15'),
 };
@@ -133,18 +133,18 @@ export const insideBandStrongConversionUnit: UnitState = {
 
 export const insideBandStrongConversionContext: PricingContext = {
   floorplanTrends: {
-    'B2': insideBandStrongConversionTrend,
+    B2: insideBandStrongConversionTrend,
   },
   communityMetrics: insideBandStrongConversionCommunity,
   leadsAppsData: {
-    'B2': {
+    B2: {
       leads: 100,
       apps: 35, // 35% conversion (strong)
       daysTracked: 30,
     },
   },
   startingRents: {
-    'B2': 1800,
+    B2: 1800,
   },
   today: new Date('2025-01-15'),
 };
@@ -184,18 +184,18 @@ export const insideBandWeakConversionUnit: UnitState = {
 
 export const insideBandWeakConversionContext: PricingContext = {
   floorplanTrends: {
-    'B2': insideBandWeakConversionTrend,
+    B2: insideBandWeakConversionTrend,
   },
   communityMetrics: insideBandWeakConversionCommunity,
   leadsAppsData: {
-    'B2': {
+    B2: {
       leads: 100,
       apps: 8, // 8% conversion (weak)
       daysTracked: 30,
     },
   },
   startingRents: {
-    'B2': 1800,
+    B2: 1800,
   },
   today: new Date('2025-01-15'),
 };
@@ -210,7 +210,7 @@ export const insideBandWeakConversionContext: PricingContext = {
 
 export const floorClampFloorplanTrend: FloorplanTrend = {
   code: 'S0',
-  trending: 0.70, // Very low occupancy
+  trending: 0.7, // Very low occupancy
   current: 0.72,
   bandLow: 0.93,
   bandHigh: 0.96,
@@ -235,14 +235,14 @@ export const floorClampUnit: UnitState = {
 
 export const floorClampContext: PricingContext = {
   floorplanTrends: {
-    'S0': floorClampFloorplanTrend,
+    S0: floorClampFloorplanTrend,
   },
   communityMetrics: floorClampCommunityMetrics,
   startingRents: {
-    'S0': 1000, // Starting rent is LOWER than current (e.g., from carry-forward baseline)
+    S0: 1000, // Starting rent is LOWER than current (e.g., from carry-forward baseline)
   },
   carryForwardBaselines: {
-    'S101': {
+    S101: {
       unitId: 'S101',
       floorplanCode: 'S0',
       priorApprovedRent: 1000, // Prior baseline is LOWER than current $1200
@@ -298,14 +298,14 @@ export const carryForwardBaseline: CarryForwardBaseline = {
 
 export const carryForwardContext: PricingContext = {
   floorplanTrends: {
-    'A1': carryForwardFloorplanTrend,
+    A1: carryForwardFloorplanTrend,
   },
   communityMetrics: carryForwardCommunityMetrics,
   carryForwardBaselines: {
-    'A102': carryForwardBaseline,
+    A102: carryForwardBaseline,
   },
   startingRents: {
-    'A1': 1400,
+    A1: 1400,
   },
   today: new Date('2025-02-15'), // 45 days later
 };
@@ -364,13 +364,13 @@ export const tierGapA1Unit: UnitState = {
 
 export const tierGapContext: PricingContext = {
   floorplanTrends: {
-    'S0': tierGapS0Trend,
-    'A1': tierGapA1Trend,
+    S0: tierGapS0Trend,
+    A1: tierGapA1Trend,
   },
   communityMetrics: tierGapCommunityMetrics,
   startingRents: {
-    'S0': 1200,
-    'A1': 1250,
+    S0: 1200,
+    A1: 1250,
   },
   today: new Date('2025-01-15'),
 };
@@ -411,11 +411,11 @@ export const shortTermUnit: UnitState = {
 
 export const shortTermContext: PricingContext = {
   floorplanTrends: {
-    'B2': shortTermFloorplanTrend,
+    B2: shortTermFloorplanTrend,
   },
   communityMetrics: shortTermCommunityMetrics,
   startingRents: {
-    'B2': 2000,
+    B2: 2000,
   },
   today: new Date('2025-01-15'),
 };
@@ -460,11 +460,11 @@ export const seasonalityUnit: UnitState = {
 // Test in June (month 5, high season: 1.12 = +12%)
 export const seasonalityContextJune: PricingContext = {
   floorplanTrends: {
-    'A1': seasonalityFloorplanTrend,
+    A1: seasonalityFloorplanTrend,
   },
   communityMetrics: seasonalityCommunityMetrics,
   startingRents: {
-    'A1': 1500,
+    A1: 1500,
   },
   today: new Date('2025-01-15'), // Terms will end in different months
 };
@@ -504,7 +504,7 @@ export function createHighOccupancyScenario(): {
     bandHigh: 0.96,
     bedrooms: 1,
   };
-  
+
   return {
     unit: {
       unitId: 'A101',
@@ -517,13 +517,13 @@ export function createHighOccupancyScenario(): {
     },
     config: standardConfig,
     context: {
-      floorplanTrends: { 'A1': trend },
+      floorplanTrends: { A1: trend },
       communityMetrics: {
         trendingOccupancy: 0.97,
         currentOccupancy: 0.97,
         target: 0.95,
       },
-      startingRents: { 'A1': 1500 },
+      startingRents: { A1: 1500 },
       today: new Date('2025-01-15'),
     },
   };
@@ -545,7 +545,7 @@ export function createLowOccupancyScenario(): {
     bandHigh: 0.96,
     bedrooms: 1,
   };
-  
+
   return {
     unit: {
       unitId: 'A101',
@@ -558,15 +558,14 @@ export function createLowOccupancyScenario(): {
     },
     config: standardConfig,
     context: {
-      floorplanTrends: { 'A1': trend },
+      floorplanTrends: { A1: trend },
       communityMetrics: {
         trendingOccupancy: 0.87,
         currentOccupancy: 0.88,
         target: 0.95,
       },
-      startingRents: { 'A1': 1500 },
+      startingRents: { A1: 1500 },
       today: new Date('2025-01-15'),
     },
   };
 }
-

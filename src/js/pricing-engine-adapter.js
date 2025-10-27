@@ -1,20 +1,20 @@
 /**
  * PRICING ENGINE ADAPTER
- * 
+ *
  * Purpose: Bridge between the pure pricing engine and the UI modules.
- * 
+ *
  * This adapter:
  * - Converts UI data structures to engine format
  * - Calls the pure pricing engine
  * - Converts engine results back to UI format
  * - Maintains backward compatibility with existing UI expectations
- * 
+ *
  * Public API (functions attached to window):
  * - window.__createPricingConfig() - Build PricingConfig from settings
  * - window.__createPricingContext() - Build PricingContext from current state
  * - window.__priceFloorplans() - Price all floorplans using engine
  * - window.__priceUnit() - Price a single unit using engine
- * 
+ *
  * Usage:
  * ```js
  * const config = window.__createPricingConfig();
@@ -28,7 +28,7 @@
 
   // Import engine functions (will be loaded via script tag)
   // These will be available once engine.ts is transpiled and loaded
-  
+
   /**
    * Create PricingConfig from current UI settings
    */
@@ -37,15 +37,15 @@
     const comfortTarget = Number(localStorage.getItem('rm:comfort_target') || 0.95);
     const priceResponse = localStorage.getItem('rm:price_response') || 'standard';
     const maxWeeklyDec = Number(localStorage.getItem('rm:max_weekly_dec') || 0.05);
-    const minFloorVsCurrentRent = 0.90; // 90% floor
+    const minFloorVsCurrentRent = 0.9; // 90% floor
     const referenceTerm = 14; // months
     const availableTerms = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
-    
+
     // Get floorplan setup for tier gaps and buffers
     const setupByCode = window.__buildSetupByCode ? window.__buildSetupByCode() : {};
     const minGapToNextTier = {};
     const stopDownBuffer = {};
-    
+
     if (window.propertySetup && window.propertySetup.floorplans) {
       for (const fp of window.propertySetup.floorplans) {
         if (fp && fp.code) {
@@ -54,26 +54,26 @@
         }
       }
     }
-    
+
     // Vacancy age pricing settings
     const vacancyAgePricing = {
       enabled: localStorage.getItem('rm:vacancy_age_enabled') === 'true',
       discountPerDay: 0.002, // 0.2% per day
-      maxDiscount: 0.10, // 10% max
+      maxDiscount: 0.1, // 10% max
       thresholdDays: 30,
     };
-    
+
     // Seasonality settings
     const seasonalityEnabled = localStorage.getItem('rm:seasonality_enabled') === 'true';
     const seasonalityMultipliers = JSON.parse(
-      localStorage.getItem('rm:seasonality_multipliers') || 
-      '[1.0, 1.0, 1.05, 1.08, 1.10, 1.12, 1.10, 1.08, 1.05, 1.02, 1.0, 1.0]'
+      localStorage.getItem('rm:seasonality_multipliers') ||
+        '[1.0, 1.0, 1.05, 1.08, 1.10, 1.12, 1.10, 1.08, 1.05, 1.02, 1.0, 1.0]'
     );
-    
+
     // Feature flags
     const enableCarryForward = true; // Always enabled in this version
     const enableSimulation = false; // Not implemented yet
-    
+
     return {
       priceResponse,
       comfortTarget,
@@ -93,14 +93,14 @@
       },
     };
   }
-  
+
   /**
    * Create PricingContext from current application state
    */
   function createPricingContext() {
     // Get floorplan trends from window.__computedTrending or similar
     const floorplanTrends = {};
-    
+
     if (window.__fpResults && Array.isArray(window.__fpResults)) {
       // Read from existing FP results if available
       for (const fp of window.__fpResults) {
@@ -118,15 +118,19 @@
     } else {
       // Compute from property setup and mapped rows
       const setupByCode = window.__buildSetupByCode ? window.__buildSetupByCode() : {};
-      const byFP = window.__groupBy ? window.__groupBy(window.mappedRows || [], r => r.Floorplan || '') : {};
-      
+      const byFP = window.__groupBy
+        ? window.__groupBy(window.mappedRows || [], r => r.Floorplan || '')
+        : {};
+
       for (const code in setupByCode) {
         const fp = setupByCode[code];
         const units = byFP[code] || [];
-        const occupied = units.filter(u => u.Status && !u.Status.toLowerCase().includes('vacant')).length;
+        const occupied = units.filter(
+          u => u.Status && !u.Status.toLowerCase().includes('vacant')
+        ).length;
         const total = units.length;
         const current = total > 0 ? occupied / total : 0;
-        
+
         floorplanTrends[code] = {
           code,
           trending: current, // Simplified: use current as trending
@@ -137,14 +141,14 @@
         };
       }
     }
-    
+
     // Get community metrics
     const communityMetrics = {
       trendingOccupancy: window.__trendingOccupancy || 0,
       currentOccupancy: window.__currentOccupancy || 0,
       target: Number(localStorage.getItem('rm:comfort_target') || 0.95),
     };
-    
+
     // Get carry-forward baselines from localStorage
     const carryForwardBaselines = {};
     try {
@@ -170,7 +174,7 @@
     } catch (e) {
       console.warn('[RM Adapter] Failed to load carry-forward baselines:', e);
     }
-    
+
     // Get starting rents per floorplan
     const startingRents = {};
     if (window.propertySetup && window.propertySetup.floorplans) {
@@ -180,10 +184,10 @@
         }
       }
     }
-    
+
     // Current date
     const today = new Date();
-    
+
     return {
       floorplanTrends,
       communityMetrics,
@@ -192,12 +196,12 @@
       today,
     };
   }
-  
+
   /**
    * Price all floorplans using the engine
-   * 
+   *
    * This replaces the inline pricing logic in pricing-fp.js
-   * 
+   *
    * @returns Array of floorplan pricing results in UI format
    */
   function priceFloorplans(config, context) {
@@ -206,21 +210,21 @@
       console.error('[RM Adapter] Pricing engine not loaded! Falling back to legacy pricing.');
       return null; // Signal to use legacy pricing
     }
-    
+
     const results = [];
-    
+
     // Group units by floorplan
     const mappedRows = window.mappedRows || [];
     const byFP = window.__groupBy ? window.__groupBy(mappedRows, r => r.Floorplan || '') : {};
     const setupByCode = window.__buildSetupByCode ? window.__buildSetupByCode() : {};
-    
+
     // Price each floorplan
     for (const code in setupByCode) {
       const fp = setupByCode[code];
       const units = byFP[code] || [];
-      
+
       if (units.length === 0) continue;
-      
+
       // Convert units to engine format
       const unitStates = units.map(u => ({
         unitId: u.UnitID || u.Unit || `unit_${Math.random()}`,
@@ -234,7 +238,7 @@
         moveInDate: u.MoveInDate || u['Move-In Date'] || '',
         amenityAdj: Number(u.AmenityAdj || 0),
       }));
-      
+
       // Call engine to price all units for this floorplan
       // For now, we'll call priceUnit for each unit and aggregate
       // TODO: Use priceFloorplan() once implemented
@@ -247,12 +251,14 @@
           console.error(`[RM Adapter] Failed to price unit ${unit.unitId}:`, e);
         }
       }
-      
+
       // Aggregate to floorplan level
       if (unitResults.length > 0) {
-        const avgBaseline = unitResults.reduce((sum, r) => sum + r.baselineRent, 0) / unitResults.length;
-        const refResult = unitResults.find(r => r.referenceTerm === config.referenceTerm) || unitResults[0];
-        
+        const avgBaseline =
+          unitResults.reduce((sum, r) => sum + r.baselineRent, 0) / unitResults.length;
+        const refResult =
+          unitResults.find(r => r.referenceTerm === config.referenceTerm) || unitResults[0];
+
         results.push({
           code,
           name: fp.name || code,
@@ -268,15 +274,15 @@
         });
       }
     }
-    
+
     return results;
   }
-  
+
   /**
    * Price a single unit using the engine
-   * 
+   *
    * This replaces the inline unit pricing logic in pricing-unit.js
-   * 
+   *
    * @param unit - Unit data in UI format
    * @param config - Pricing configuration
    * @param context - Pricing context
@@ -288,7 +294,7 @@
       console.error('[RM Adapter] Pricing engine not loaded! Cannot price unit.');
       return null;
     }
-    
+
     // Convert unit to engine format
     const unitState = {
       unitId: unit.UnitID || unit.Unit || `unit_${Math.random()}`,
@@ -302,7 +308,7 @@
       moveInDate: unit.MoveInDate || unit['Move-In Date'] || '',
       amenityAdj: Number(unit.AmenityAdj || 0),
     };
-    
+
     try {
       return window.__pricingEngine.priceUnit(unitState, config, context);
     } catch (e) {
@@ -310,13 +316,12 @@
       return null;
     }
   }
-  
+
   // Attach to window for global access
   window.__createPricingConfig = createPricingConfig;
   window.__createPricingContext = createPricingContext;
   window.__priceFloorplans = priceFloorplans;
   window.__priceUnit = priceUnit;
-  
+
   console.log('[RM Adapter] Pricing engine adapter loaded');
 })();
-

@@ -1,6 +1,6 @@
 /**
  * TYPE DEFINITIONS FOR PRICING ENGINE
- * 
+ *
  * Core types for the pure pricing calculation engine.
  * These types define inputs, outputs, and configuration for pricing calculations.
  */
@@ -76,26 +76,26 @@ export interface CarryForwardBaseline {
 export interface PricingConfig {
   // Price response style
   priceResponse: 'fast' | 'standard' | 'gentle'; // Determines maxMove (8%, 5%, 3%)
-  
+
   // Comfort band thresholds (community-level)
   comfortTarget: number; // e.g., 0.95 = 95%
   bandLow?: number; // Optional override (defaults to 0.93)
   bandHigh?: number; // Optional override (defaults to 0.96)
-  
+
   // Caps and floors
   maxWeeklyDec: number; // Max weekly decrease (e.g., 0.05 = 5%)
   minFloorVsCurrentRent: number; // Minimum floor vs current rent (e.g., 0.90 = 90%)
-  
+
   // Tier gap enforcement
   minGapToNextTier: Record<string, number>; // { 'S0': 100, 'A1': 150, ... }
   stopDownBuffer: Record<string, number>; // { 'S0': 50, 'A1': 75, ... }
-  
+
   // Reference term (anchor term for pricing calculations)
   referenceTerm: number; // e.g., 14
-  
+
   // Available terms for new leases
   availableTerms: number[]; // e.g., [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
-  
+
   // Vacancy age pricing
   vacancyAgePricing: {
     enabled: boolean;
@@ -103,14 +103,14 @@ export interface PricingConfig {
     maxDiscount: number; // e.g., 0.10 = 10% max
     thresholdDays: number; // e.g., 30 days
   };
-  
+
   // Seasonality settings
   seasonalityEnabled: boolean;
   seasonalityMultipliers: number[]; // 12 months, e.g., [1.0, 1.0, 1.05, ...]
-  
+
   // Future: Per-floorplan trend overrides for simulator mode
   trendOverridePctByFP?: Record<string, number>; // { 'S0': 0.02, 'A1': -0.03, ... }
-  
+
   // Feature flags
   flags?: {
     enableSimulation?: boolean; // For future simulator mode
@@ -124,19 +124,19 @@ export interface PricingConfig {
 export interface PricingContext {
   // Floorplan trends
   floorplanTrends: Record<string, FloorplanTrend>;
-  
+
   // Community-level metrics
   communityMetrics: CommunityMetrics;
-  
+
   // Leads/apps data for conversion steering (optional)
   leadsAppsData?: Record<string, LeadsAppsData>;
-  
+
   // Carry-forward baselines from previous run (optional)
   carryForwardBaselines?: Record<string, CarryForwardBaseline>;
-  
+
   // Starting rents (fallback if no carry-forward)
   startingRents: Record<string, number>; // { 'S0': 1200, 'A1': 1400, ... }
-  
+
   // Current date for calculations
   today: Date;
 }
@@ -149,7 +149,17 @@ export interface PricingContext {
  * Price adjustment reason - explains why a price moved
  */
 export interface PriceReason {
-  type: 'trend' | 'conversion' | 'carryForward' | 'shortTerm' | 'overCap' | 'seasonality' | 'vacancyAge' | 'cap' | 'floor' | 'tierGap';
+  type:
+    | 'trend'
+    | 'conversion'
+    | 'carryForward'
+    | 'shortTerm'
+    | 'overCap'
+    | 'seasonality'
+    | 'vacancyAge'
+    | 'cap'
+    | 'floor'
+    | 'tierGap';
   description: string; // Human-readable description
   value: number; // The percentage or dollar amount of adjustment
   applied: boolean; // Whether this adjustment was actually applied
@@ -200,22 +210,22 @@ export interface TermPricing {
 export interface UnitPricingResult {
   unitId: string;
   floorplanCode: string;
-  
+
   // Base pricing (reference term)
   baselineRent: number; // The baseline rent before term adjustments
   referenceTerm: number; // The reference term used (e.g., 14)
   referenceRent: number; // The rent at reference term
-  
+
   // Deltas
   delta: PriceDelta;
-  
+
   // All term pricing
   termPricing: TermPricing[];
-  
+
   // Reasons and flags
   reasons: PriceReason[]; // Primary reasons for baseline calculation
   flags: PriceFlags; // Binary flags for explainability
-  
+
   // Debug info (optional)
   debug?: {
     trendDirection: number; // -1, 0, +1
@@ -232,24 +242,24 @@ export interface FloorplanPricingResult {
   code: string;
   name: string;
   bedrooms: number;
-  
+
   // Baseline for this floorplan
   baselineRent: number; // The baseline rent at reference term
   referenceTerm: number;
-  
+
   // Trend info
   trending: number; // 0..1
   trendDirection: number; // -1, 0, +1
   trendMagnitude: number; // e.g., 0.05 = 5%
-  
+
   // Count of units
   totalUnits: number;
   vacantUnits: number;
   onNoticeUnits: number;
-  
+
   // Term pricing for display
   termPricing: TermPricing[];
-  
+
   // Reasons and flags
   reasons: PriceReason[];
   flags: PriceFlags;
@@ -274,12 +284,11 @@ export interface PricingEngineState {
 export interface PricingEngineResult {
   // Per-unit pricing
   unitPricing: Record<string, UnitPricingResult>;
-  
+
   // Per-floorplan summaries
   floorplanPricing: Record<string, FloorplanPricingResult>;
-  
+
   // Metadata
   calculatedAt: Date;
   configSnapshot: PricingConfig;
 }
-
