@@ -265,6 +265,10 @@
         : [];
     const setupByCode = buildSetupByCode();
     
+    // Get wrap element (needed for both paths)
+    const wrap = document.getElementById('nlTables');
+    wrap.innerHTML = '';
+    
     if (USE_ENGINE) {
       console.log('[RM Step 106] Engine integration ACTIVE');
       console.log('[RM Step 106] Using pure pricing engine for all calculations');
@@ -307,14 +311,21 @@
         // Set global results for UI rendering
         window.__fpResults = convertedResults;
         
-        // Now render UI from __fpResults (simplified rendering)
+        // Now render UI from __fpResults with full term pricing
         for (const result of convertedResults) {
+          const fp = fpPricing[result.code];
           const s = setupByCode[result.code] || {};
           const sr = Number(s?.starting_rent ?? s?.reference_ask) || 0;
           
-          // Build term pricing display from engine results
-          // TODO: Get term pricing from fp.termPricing array
-          const trs = `<tr><td colspan="3" class="note">Engine-powered pricing for ${result.code}</td></tr>`;
+          // Build term pricing rows from engine results
+          const trs = fp.termPricing && fp.termPricing.length > 0
+            ? fp.termPricing.map(term => {
+                const notes = term.reasons.length > 0 
+                  ? term.reasons.map(r => r.message).join('; ')
+                  : '';
+                return `<tr><td>${term.term}</td><td>$${Math.round(term.price)}</td><td style="text-align:right;font-size:0.85em">${notes || '-'}</td></tr>`;
+              }).join('')
+            : `<tr><td colspan="3" class="note">No term pricing available</td></tr>`;
           
           wrap.insertAdjacentHTML(
             'beforeend',
@@ -342,8 +353,6 @@
       // Engine not available - use legacy path silently
     }
     
-    const wrap = document.getElementById('nlTables');
-    wrap.innerHTML = '';
     // Footnote about guardrail
     wrap.insertAdjacentHTML(
       'beforeend',
