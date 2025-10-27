@@ -4735,6 +4735,54 @@ document.addEventListener('DOMContentLoaded', function(){
     };
   };
   
+  /**
+   * Convert window.mappedRows to UnitState[] format for engine
+   */
+  window.__convertMappedRowsToUnitStates = function() {
+    const mappedRows = window.mappedRows || [];
+    const fpMap = _safeLoadFPMap();
+    
+    return mappedRows.map(row => {
+      const floorplanLabel = row.Floorplan || '';
+      const floorplanCode = fpMap[floorplanLabel] || firstToken(floorplanLabel);
+      
+      return {
+        unitId: row.UnitID || `unit_${row.Floorplan}_${row.Bedrooms}`,
+        floorplanCode: floorplanCode,
+        floorplanLabel: floorplanLabel,
+        status: row.Status || 'occupied',
+        currentRent: Number(row.CurrentRent) || 0,
+        leaseEndDate: row.LeaseEnd || undefined,
+        preleaseStartDate: row.PreleaseStart || undefined,
+        vacantDays: Number(row.VacantDays) || 0,
+        moveInDate: row.MoveInDate || undefined,
+        amenityAdj: Number(row.AmenityAdj) || 0,
+      };
+    });
+  };
+  
+  // Helper to extract first token (same as in pricing-fp.js)
+  function firstToken(label) {
+    const raw = String(label || '')
+      .replace(/[×✕✖]/g, 'x')
+      .trim()
+      .replace(/\s+/g, ' ');
+    return (raw.split(/\s+/)[0] || '').replace(/[^A-Za-z0-9]/g, '');
+  }
+  
+  // Helper to load FP map (same as in pricing-fp.js)
+  function _safeLoadFPMap() {
+    try {
+      const propertyId = window.__seedPropertySetup?.property_id || 'thorpe-gardens';
+      const fpMapKey = `rm:fpmap:${propertyId}`;
+      const saved = JSON.parse(localStorage.getItem(fpMapKey) || '{}');
+      const seed = window.__seedFPMap || {};
+      return Object.keys(saved).length > 0 ? saved : seed;
+    } catch (e) {
+      return window.__seedFPMap || {};
+    }
+  }
+  
   console.log('[RM Step 106] Adapter functions loaded');
 </script>
 
