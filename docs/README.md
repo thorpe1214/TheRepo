@@ -84,19 +84,27 @@ We follow a **feature branch → PR → CI → merge → tag** workflow for all 
 ├── steps/
 │   └── Step 104 — Seeded single-property mode.html  # Latest production-ready version
 ├── src/
-│   └── js/
-│       ├── pricing-helpers.js     # Shared utilities (formatMoney, dates, etc.)
-│       ├── pricing-unit.js        # Unit-level pricing & rendering
-│       ├── pricing-fp.js          # Floorplan-level pricing & rendering
-│       ├── app-boot.js            # Application initialization
-│       ├── seeds.js               # Property setup and floorplan mapping seeds
-│       ├── validation.js          # CSV validation and strict mapping logic
-│       └── dev-guards.js          # Development boundary checks
+│   ├── js/
+│   │   ├── pricing-helpers.js     # Shared utilities (formatMoney, dates, etc.)
+│   │   ├── pricing-unit.js        # Unit-level pricing & rendering
+│   │   ├── pricing-fp.js          # Floorplan-level pricing & rendering
+│   │   ├── pricing-engine-adapter.js  # Bridge to pure pricing engine (Step 105)
+│   │   ├── app-boot.js            # Application initialization
+│   │   ├── seeds.js               # Property setup and floorplan mapping seeds
+│   │   ├── validation.js          # CSV validation and strict mapping logic
+│   │   └── dev-guards.js          # Development boundary checks
+│   ├── pricing/                   # NEW: Pure pricing engine (Step 105)
+│   │   ├── engine.ts              # Core pricing logic (TypeScript)
+│   │   └── types.ts               # Type definitions
+│   └── data/                      # NEW: Data provider layer (Step 105)
+│       ├── PricingDataProvider.ts # Interface
+│       └── RealDataProvider.ts    # Implementation
 ├── docs/
 │   ├── README.md                  # This file
 │   ├── WORKFLOW.md                 # Development process
 │   ├── CONTRIBUTING.md             # Code standards
 │   ├── ARCHITECTURE.md             # Detailed module documentation
+│   ├── PRICING_ENGINE.md          # Pricing engine documentation (Step 105)
 │   └── CHANGELOG.md                # Version history
 ├── data/
 │   ├── thorpe_gardens_200_units.csv             # Primary test data (Thorpe Gardens)
@@ -231,6 +239,53 @@ npm run lint && npm run validate && npm run smoke
 ```
 
 **Expected test runtime**: <10 seconds for all tests
+
+---
+
+## 🧮 Pricing Engine (Step 105 - Beta)
+
+**Status**: Engine complete ✅, UI integration pending 🔄
+
+Step 105 introduces a pure, testable pricing engine extracted from the UI modules. The engine is implemented in TypeScript with comprehensive test coverage and follows a clean architecture pattern.
+
+### Key Features
+- ✅ **Pure Functions**: No side effects, easy to test
+- ✅ **Type Safety**: TypeScript ensures correctness
+- ✅ **100% Test Coverage**: 12/12 tests passing
+- ✅ **Data Provider Pattern**: Supports future simulator mode
+- ✅ **Inside-Band Damping**: Prevents oscillation around target
+- ✅ **Carry-Forward Baselines**: Smooth pricing evolution over time
+
+### Architecture
+```
+UI (pricing-fp.js, pricing-unit.js)
+    ↓
+Adapter (pricing-engine-adapter.js)
+    ↓
+Engine (src/pricing/engine.ts)
+    ↓
+Data Provider (RealDataProvider)
+```
+
+### Pricing Rules (Fixed Order)
+1. **Trend Move** - Up/down based on occupancy vs target
+2. **Conversion Nudge** - Inside band only, ±0.5%
+3. **Carry-Forward** - Use prior approved rent as baseline
+4. **Caps** - Limit downward moves to 5%/week
+5. **Floors** - Never below 90% of current
+6. **Tier Gap** - Minimum gap to lower bedroom tier
+7. **Term Premiums** - Short-term, seasonality, vacancy age
+
+### Test Results
+```bash
+npx jest tests/pricing/engine.spec.ts
+# 12/12 passing ✅
+# - 7 golden fixtures
+# - 4 invariant tests
+# - 1 carry-forward regression test
+```
+
+**📖 Full Documentation**: [docs/PRICING_ENGINE.md](PRICING_ENGINE.md)
 
 ---
 
