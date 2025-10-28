@@ -4916,6 +4916,63 @@ document.addEventListener('DOMContentLoaded', function(){
 </script>
 
 <!-- ============================================================================
+     SIMULATOR API STUB (Step 1 Phase 2)
+     ============================================================================ -->
+
+<script>
+(function() {
+  'use strict';
+  
+  // Create window.RMS API stub until browser-adapter.ts is compiled
+  window.RMS = window.RMS || {
+    mode: 'real',
+    history: [],
+    lastInvariantCheck: { valid: true },
+    
+    setMode: function(mode) { this.mode = mode; console.log('[RMS] Mode set to:', mode); },
+    getMode: function() { return this.mode; },
+    
+    initSim: function(config) {
+      console.log('[RMS] Init simulation:', config);
+      this.mode = 'simulation';
+      this.config = config;
+      this.history = [];
+      this.lastInvariantCheck = { valid: true };
+    },
+    
+    resetSim: function(seed) {
+      console.log('[RMS] Reset simulation, seed:', seed);
+      if (this.config) this.config.seed = seed;
+      this.history = [];
+      this.lastInvariantCheck = { valid: true };
+    },
+    
+    runOnce: function() { console.log('[RMS] RunOnce'); },
+    step: function() {
+      console.log('[RMS] Step forward 1 day');
+      // Add a dummy snapshot to history
+      this.history.push({
+        nowSeconds: Math.floor(Date.now() / 1000),
+        dataSource: 'simulation',
+        boxScore: { totalUnits: 200, occupiedUnits: 150, onNoticeUnits: 10, vacantReadyUnits: 30, preleasedUnits: 10, occupancyRate: 0.75, projectedOccupancy: 0.85, vacantDaysAvg: 5 },
+        lists: { occupied: [], onNotice: [], vacantReady: [], preleased: [] },
+        pricesByFP: {},
+        trendOverrides: {},
+        propertyInfo: { totalUnits: 200, mixByFP: {} }
+      });
+      this.lastInvariantCheck = { valid: true };
+    },
+    
+    getHistory: function() { return this.history; },
+    loadSnapshot: function(index) { console.log('[RMS] Load snapshot:', index); },
+    getInvariantCheck: function() { return this.lastInvariantCheck; }
+  };
+  
+  console.log('[RM Step 1] window.RMS API stub loaded');
+})();
+</script>
+
+<!-- ============================================================================
      DEVELOPMENT PANEL CONTROLLER (Step 107)
      ============================================================================ -->
 
