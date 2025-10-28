@@ -1449,6 +1449,23 @@
             <button id="simSpeed10Btn" class="btn xs">10×</button>
           </div>
           
+          <!-- Trend % Controls (80–100) -->
+          <div id="simTrendOccPctControls" style="margin:12px 0; padding:8px; background:#f0f9ff; border-radius:6px; display:none;">
+            <h4 style="margin:0 0 8px; font-size:0.9em;">Floorplan Trend % (80–100)</h4>
+            <div id="simTrendOccPctContainer">
+              <!-- Controls will be injected here -->
+            </div>
+            <button id="simResetTrendBtn" class="btn xs" style="margin-top:8px;">Reset Trend %</button>
+          </div>
+          
+          <!-- Prices & Deltas Panel -->
+          <div id="simPricesPanel" style="margin:12px 0; padding:8px; background:#fef3c7; border-radius:6px; display:none;">
+            <h4 style="margin:0 0 8px; font-size:0.9em;">Per-Floorplan Prices (current run)</h4>
+            <div id="simPricesContent">
+              <div class="note" style="font-size:12px;">No pricing data yet. Click Step or Start to run.</div>
+            </div>
+          </div>
+          
           <div id="simHistoryStrip" style="margin-top:8px; display:flex; gap:4px; flex-wrap:wrap; max-height:60px; overflow-y:auto; padding:4px; background:#1e293b; border-radius:4px;">
             <div class="note" style="font-size:11px; margin:0;">History strip will appear here</div>
           </div>
@@ -4982,6 +4999,11 @@ document.addEventListener('DOMContentLoaded', function(){
             updateHistoryStrip();
           }
           
+          // Update prices panel if available
+          if (typeof updatePricesPanel === 'function') {
+            updatePricesPanel();
+          }
+          
           // Check invariants if available
           if (typeof checkInvariants === 'function') {
             checkInvariants();
@@ -5031,6 +5053,8 @@ document.addEventListener('DOMContentLoaded', function(){
     mode: 'real',
     history: [],
     lastInvariantCheck: { valid: true },
+    trendOccPctByFP: {}, // Track trend % overrides (80–100)
+    pricesByFP: {}, // Track current prices per floorplan
     
     setMode: function(mode) { 
       this.mode = mode; 
@@ -5040,6 +5064,35 @@ document.addEventListener('DOMContentLoaded', function(){
       }
     },
     getMode: function() { return this.mode; },
+    
+    setTrendOccPct: function(map) {
+      this.trendOccPctByFP = {};
+      for (const fp in map) {
+        const val = parseFloat(map[fp]);
+        if (val >= 80 && val <= 100) {
+          this.trendOccPctByFP[fp] = val;
+        }
+      }
+      // Persist to localStorage
+      try {
+        localStorage.setItem('rms:sim:trendOccPctByFP', JSON.stringify(this.trendOccPctByFP));
+      } catch (e) {
+        console.warn('[RMS] Failed to persist trendOccPctByFP:', e);
+      }
+      console.log('[RMS] Trend % overrides set:', this.trendOccPctByFP);
+    },
+    
+    resetTrendOccPct: function() {
+      this.trendOccPctByFP = {};
+      try {
+        localStorage.removeItem('rms:sim:trendOccPctByFP');
+      } catch (e) {
+        console.warn('[RMS] Failed to clear trendOccPctByFP:', e);
+      }
+      console.log('[RMS] Trend % overrides reset');
+    },
+    
+    getTrendOccPct: function() { return { ...this.trendOccPctByFP }; }
     
     initSim: function(config) {
       console.log('[RMS] Init simulation:', config);
@@ -5061,14 +5114,33 @@ document.addEventListener('DOMContentLoaded', function(){
     runOnce: function() { console.log('[RMS] RunOnce'); },
     step: function() {
       console.log('[RMS] Step forward 1 day');
-      // Add a dummy snapshot to history
+      
+      // Generate dummy prices with deltas for demo
+      const fpCodes = ['S0', 'A1', 'B2', 'C3'];
+      const basePrices = { 'S0': 1200, 'A1': 1650, 'B2': 2150, 'C3': 2650 };
+      const prices = {};
+      
+      fpCodes.forEach(fp => {
+        const override = this.trendOccPctByFP[fp];
+        const reasons = override ? [`trend=${override}% (override)`] : [];
+        prices[fp] = {
+          newRent: basePrices[fp] + (Math.random() - 0.5) * 50,
+          delta: (Math.random() - 0.5) * 30,
+          reasons: reasons
+        };
+      });
+      
+      this.pricesByFP = prices;
+      
+      // Add a snapshot to history
       this.history.push({
         nowSeconds: Math.floor(Date.now() / 1000),
         dataSource: 'simulation',
         boxScore: { totalUnits: 200, occupiedUnits: 150, onNoticeUnits: 10, vacantReadyUnits: 30, preleasedUnits: 10, occupancyRate: 0.75, projectedOccupancy: 0.85, vacantDaysAvg: 5 },
         lists: { occupied: [], onNotice: [], vacantReady: [], preleased: [] },
-        pricesByFP: {},
+        pricesByFP: prices,
         trendOverrides: {},
+        trendOccPctByFP: { ...this.trendOccPctByFP },
         propertyInfo: { totalUnits: 200, mixByFP: {} }
       });
       this.lastInvariantCheck = { valid: true };
@@ -5467,6 +5539,12 @@ document.addEventListener('DOMContentLoaded', function(){
           // Build mix sliders
           buildMixSliders();
           
+          // Build trend % controls
+          buildTrendOccPctControls();
+          
+          // Update visibility
+          updateTrendControlsVisibility();
+          
           // Enable Start button
           const startBtn = document.getElementById('simStartBtn');
           if (startBtn) startBtn.disabled = false;
@@ -5507,6 +5585,9 @@ document.addEventListener('DOMContentLoaded', function(){
           
           // Update history strip
           updateHistoryStrip();
+          
+          // Update prices panel
+          updatePricesPanel();
           
           // Check invariants and show warning if needed
           checkInvariants();
@@ -5623,8 +5704,22 @@ document.addEventListener('DOMContentLoaded', function(){
       historyStrip.innerHTML = history.map((snapshot, idx) => {
         const date = new Date(snapshot.nowSeconds * 1000);
         const timeStr = date.toLocaleTimeString('en-US', { hour12: false });
-        return `<div class="history-chip" onclick="window.RMS.loadSnapshot(${idx}); console.log('Loaded snapshot', ${idx});" style="background:#0891b2; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;">${timeStr}</div>`;
+        return `<div class="history-chip" data-snapshot-idx="${idx}" onclick="window.RMS.loadSnapshot(${idx}); updatePricesPanel(); console.log('Loaded snapshot', ${idx});" style="background:#0891b2; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;">${timeStr}</div>`;
       }).join('');
+    }
+    
+    // Update window.RMS.loadSnapshot to load prices
+    if (window.RMS) {
+      const originalLoadSnapshot = window.RMS.loadSnapshot;
+      window.RMS.loadSnapshot = function(index) {
+        if (originalLoadSnapshot) originalLoadSnapshot.call(this, index);
+        const history = this.getHistory();
+        const snapshot = history[index];
+        if (snapshot && snapshot.pricesByFP) {
+          this.pricesByFP = snapshot.pricesByFP;
+        }
+        updatePricesPanel();
+      };
     }
     
     // Build floorplan mix sliders
@@ -5696,6 +5791,178 @@ document.addEventListener('DOMContentLoaded', function(){
       
       totalDisplay.textContent = `Total: ${total}%`;
       totalDisplay.style.background = total === 100 ? '#dcfce7' : (total > 100 ? '#fee2e2' : '#fef3c7');
+    }
+    
+    // Build Trend % controls
+    function buildTrendOccPctControls() {
+      const container = document.getElementById('simTrendOccPctContainer');
+      if (!container) return;
+      
+      const floorplans = [
+        { code: 'S0', name: 'Studio' },
+        { code: 'A1', name: '1BR' },
+        { code: 'B2', name: '2BR' },
+        { code: 'C3', name: '3BR' }
+      ];
+      
+      container.innerHTML = '';
+      
+      floorplans.forEach(fp => {
+        const row = document.createElement('div');
+        row.style.marginBottom = '6px';
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.gap = '8px';
+        
+        // Load saved value or use null
+        let savedValue = null;
+        try {
+          const stored = localStorage.getItem('rms:sim:trendOccPctByFP');
+          if (stored) {
+            const obj = JSON.parse(stored);
+            savedValue = obj[fp.code] || null;
+          }
+        } catch (e) {}
+        
+        row.innerHTML = `
+          <label style="min-width:60px; font-size:12px;">${fp.code}</label>
+          <input type="range" min="80" max="100" value="${savedValue || 92}" class="trend-slider" data-fp="${fp.code}" style="flex:1;">
+          <input type="number" min="80" max="100" value="${savedValue || 92}" class="trend-input" data-fp="${fp.code}" style="width:60px; padding:2px 4px;">
+          <span class="trend-asterisk" data-fp="${fp.code}" style="width:20px; font-size:14px;">${savedValue ? '*' : ''}</span>
+        `;
+        
+        container.appendChild(row);
+      });
+      
+      // Add event listeners
+      container.querySelectorAll('.trend-slider').forEach(slider => {
+        slider.addEventListener('input', function() {
+          const fp = this.getAttribute('data-fp');
+          const value = parseInt(this.value);
+          const input = container.querySelector(`.trend-input[data-fp="${fp}"]`);
+          const asterisk = container.querySelector(`.trend-asterisk[data-fp="${fp}"]`);
+          if (input) input.value = value;
+          if (asterisk) asterisk.textContent = '*';
+          
+          // Update window.RMS
+          updateTrendOccPctToRMS();
+        });
+      });
+      
+      container.querySelectorAll('.trend-input').forEach(input => {
+        input.addEventListener('input', function() {
+          const fp = this.getAttribute('data-fp');
+          let value = parseInt(this.value);
+          if (value < 80) value = 80;
+          if (value > 100) value = 100;
+          this.value = value;
+          
+          const slider = container.querySelector(`.trend-slider[data-fp="${fp}"]`);
+          const asterisk = container.querySelector(`.trend-asterisk[data-fp="${fp}"]`);
+          if (slider) slider.value = value;
+          if (asterisk) asterisk.textContent = '*';
+          
+          // Update window.RMS
+          updateTrendOccPctToRMS();
+        });
+      });
+    }
+    
+    // Update trendOccPctByFP to window.RMS
+    function updateTrendOccPctToRMS() {
+      if (!window.RMS) return;
+      
+      const container = document.getElementById('simTrendOccPctContainer');
+      if (!container) return;
+      
+      const map = {};
+      container.querySelectorAll('.trend-input').forEach(input => {
+        const fp = input.getAttribute('data-fp');
+        const asterisk = container.querySelector(`.trend-asterisk[data-fp="${fp}"]`);
+        if (asterisk && asterisk.textContent === '*') {
+          map[fp] = parseInt(input.value);
+        }
+      });
+      
+      window.RMS.setTrendOccPct(map);
+    }
+    
+    // Reset trend % button
+    const resetTrendBtn = document.getElementById('simResetTrendBtn');
+    if (resetTrendBtn) {
+      resetTrendBtn.addEventListener('click', function() {
+        if (!window.RMS) return;
+        
+        window.RMS.resetTrendOccPct();
+        
+        const container = document.getElementById('simTrendOccPctContainer');
+        if (container) {
+          container.querySelectorAll('.trend-input').forEach(input => {
+            const slider = container.querySelector(`.trend-slider[data-fp="${input.getAttribute('data-fp')}"]`);
+            const asterisk = container.querySelector(`.trend-asterisk[data-fp="${input.getAttribute('data-fp')}"]`);
+            input.value = 92;
+            if (slider) slider.value = 92;
+            if (asterisk) asterisk.textContent = '';
+          });
+        }
+        
+        console.log('[RM Step 1] Trend % reset to computed');
+      });
+    }
+    
+    // Update prices panel
+    function updatePricesPanel() {
+      if (!window.RMS) return;
+      
+      const panel = document.getElementById('simPricesPanel');
+      const content = document.getElementById('simPricesContent');
+      if (!panel || !content) return;
+      
+      const prices = window.RMS.pricesByFP || {};
+      const floorplans = ['S0', 'A1', 'B2', 'C3'];
+      
+      if (Object.keys(prices).length === 0) {
+        content.innerHTML = '<div class="note" style="font-size:12px;">No pricing data yet. Click Step or Start to run.</div>';
+        panel.style.display = 'none';
+        return;
+      }
+      
+      panel.style.display = 'block';
+      
+      content.innerHTML = floorplans.map(fp => {
+        const p = prices[fp];
+        if (!p) return '';
+        
+        const newRent = p.newRent || 0;
+        const delta = p.delta || 0;
+        const deltaPct = (newRent - 1200) > 0 ? '+2.5%' : '-1.2%'; // Dummy % for demo
+        const reasons = p.reasons || [];
+        
+        return `
+          <div style="margin-bottom:8px; padding:6px; background:white; border-radius:4px;">
+            <strong style="font-size:13px;">${fp}</strong>
+            <div style="margin-top:4px; font-size:12px;">
+              Price: $${newRent.toFixed(0)} | Δ $${delta > 0 ? '+' : ''}${delta.toFixed(0)} | Δ ${deltaPct}
+            </div>
+            ${reasons.length > 0 ? `<div style="margin-top:4px; font-size:11px; color:#0891b2;">${reasons.join(', ')}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+    
+    // Show/Hide Trend % controls based on mode
+    function updateTrendControlsVisibility() {
+      const controls = document.getElementById('simTrendOccPctControls');
+      if (!controls) return;
+      
+      const isSimMode = window.RMS && window.RMS.getMode && window.RMS.getMode() === 'simulation';
+      controls.style.display = isSimMode ? 'block' : 'none';
+      
+      // Show prices panel
+      const pricesPanel = document.getElementById('simPricesPanel');
+      if (pricesPanel) {
+        pricesPanel.style.display = isSimMode ? 'block' : 'none';
+      }
     }
     
     console.log('[RM Step 1] Simulator controls initialized');
