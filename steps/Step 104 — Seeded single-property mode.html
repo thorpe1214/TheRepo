@@ -1400,6 +1400,40 @@
             Data Source: <span id="dataSourceText">Real</span>
           </div>
         </div>
+
+        <!-- Simulator Controls (Step 1) -->
+        <div id="simulatorControls" style="display:none; margin-top:16px;">
+          <h3 style="margin:0 0 12px; font-size:1em;">Simulator Controls</h3>
+          
+          <div class="setting-group" style="margin:8px 0;">
+            <label>Total Units: <input type="number" id="simTotalUnits" value="200" min="1" max="1000" style="width:80px;"></label>
+          </div>
+          
+          <div class="setting-group" style="margin:8px 0;">
+            <label>Seed: <input type="number" id="simSeed" value="12345" style="width:100px;"></label>
+            <button id="simInitBtn" class="btn xs">Init</button>
+            <button id="simResetBtn" class="btn xs">Reset</button>
+          </div>
+          
+          <div class="setting-group" style="margin:8px 0;">
+            <button id="simRunOnceBtn" class="btn xs">RunOnce</button>
+            <button id="simStepBtn" class="btn xs">Step</button>
+            <button id="simStartBtn" class="btn xs" disabled>Start</button>
+            <button id="simStopBtn" class="btn xs" disabled>Stop</button>
+          </div>
+          
+          <div id="simHistoryStrip" style="margin-top:8px; display:flex; gap:4px; flex-wrap:wrap; max-height:60px; overflow-y:auto; padding:4px; background:#1e293b; border-radius:4px;">
+            <div class="note" style="font-size:11px; margin:0;">History strip will appear here</div>
+          </div>
+        </div>
+
+        <!-- Simulator Demo Button (Quick Entry Point) -->
+        <div style="margin-top:16px;">
+          <button id="simulatorDemoBtn" class="btn" style="width:100%; margin-top:8px;">🎮 Try Simulator Demo</button>
+          <div class="note" style="margin-top:4px; font-size:12px;">
+            Load sample simulated data and run pricing without a CSV upload.
+          </div>
+        </div>
       </div>
 
       <!-- Data Settings (Property Profile) -->
@@ -5125,6 +5159,148 @@ document.addEventListener('DOMContentLoaded', function(){
     }
     
     console.log('[RM Step 107] Dev panel initialized');
+
+    // Simulator Demo Button Handler (KEEP EXISTING BEHAVIOR)
+    const simulatorDemoBtn = document.getElementById('simulatorDemoBtn');
+    if (simulatorDemoBtn) {
+      simulatorDemoBtn.addEventListener('click', function() {
+        console.log('[RM Simulator] Loading demo data...');
+        
+        // Create simulated data
+        const demoData = [];
+        const floorplans = ['S0', 'A1', 'B2', 'C3'];
+        const statuses = ['occupied', 'vacant', 'occupied (on-notice)', 'preleased'];
+        
+        for (let i = 0; i < 50; i++) {
+          const fp = floorplans[i % 4];
+          const status = statuses[i % 4];
+          const today = new Date();
+          
+          demoData.push({
+            UnitID: `${fp}-${String(i + 1).padStart(3, '0')}`,
+            Floorplan: fp,
+            Bedrooms: fp === 'S0' ? 0 : fp === 'A1' ? 1 : fp === 'B2' ? 2 : 3,
+            Status: status,
+            CurrentRent: fp === 'S0' ? 1200 : fp === 'A1' ? 1650 : fp === 'B2' ? 2150 : 2650,
+            LeaseEnd: status.includes('occupied') ? new Date(today.getTime() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : '',
+            PreleaseStart: status === 'preleased' ? new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : '',
+            VacantDays: status === 'vacant' ? Math.floor(Math.random() * 30) : 0,
+            MoveInDate: '',
+            AmenityAdj: 0
+          });
+        }
+        
+        // Store as mapped rows
+        window.mappedRows = demoData;
+        window.rawRows = demoData;
+        window.mapping = {
+          UnitID: 'UnitID',
+          Floorplan: 'Floorplan',
+          Bedrooms: 'Bedrooms',
+          Status: 'Status',
+          CurrentRent: 'CurrentRent',
+          LeaseEnd: 'LeaseEnd',
+          PreleaseStart: 'PreleaseStart',
+          VacantDays: 'VacantDays',
+          MoveInDate: 'MoveInDate',
+          AmenityAdj: 'AmenityAdj'
+        };
+        
+        // Update UI
+        if (typeof window.__updateStatusFromMappedRows === 'function') {
+          window.__updateStatusFromMappedRows(demoData);
+        }
+        
+        // Show success message
+        alert(`✅ Simulator Demo Loaded!\n\nLoaded ${demoData.length} simulated units:\n• S0: Studios\n• A1: 1BR\n• B2: 2BR\n• C3: 3BR\n\nYou can now run pricing on this simulated data.\n\nClick "Run New" to see pricing results!`);
+        
+        console.log('[RM Simulator] Demo data loaded:', demoData.length, 'units');
+        
+        // Show simulator controls
+        const simulatorControls = document.getElementById('simulatorControls');
+        if (simulatorControls) {
+          simulatorControls.style.display = 'block';
+        }
+      });
+    }
+
+    // Simulator Controls Handlers (Step 1)
+    const simInitBtn = document.getElementById('simInitBtn');
+    const simResetBtn = document.getElementById('simResetBtn');
+    const simRunOnceBtn = document.getElementById('simRunOnceBtn');
+    const simStepBtn = document.getElementById('simStepBtn');
+    const simStartBtn = document.getElementById('simStartBtn');
+    const simStopBtn = document.getElementById('simStopBtn');
+    
+    if (simInitBtn) {
+      simInitBtn.addEventListener('click', function() {
+        const totalUnits = parseInt(document.getElementById('simTotalUnits')?.value || '200');
+        const seed = parseInt(document.getElementById('simSeed')?.value || '12345');
+        
+        if (window.RMS && window.RMS.initSim) {
+          window.RMS.setMode('simulation');
+          window.RMS.initSim({
+            seed,
+            totalUnits,
+            mixByFP: { 'S0': 25, 'A1': 40, 'B2': 30, 'C3': 5 },
+            startingRents: { 'S0': 1200, 'A1': 1650, 'B2': 2150, 'C3': 2650 }
+          });
+          console.log(`[RMS Step 1] Initialized simulator with ${totalUnits} units, seed ${seed}`);
+          alert(`✅ Simulator initialized!\n\nTotal Units: ${totalUnits}\nSeed: ${seed}\n\nReady to run pricing.`);
+        } else {
+          console.warn('[RMS Step 1] window.RMS not available');
+          alert('❌ Simulator API not loaded yet. Please refresh the page.');
+        }
+      });
+    }
+    
+    if (simResetBtn) {
+      simResetBtn.addEventListener('click', function() {
+        if (window.RMS && window.RMS.resetSim) {
+          const seed = parseInt(document.getElementById('simSeed')?.value || '12345');
+          window.RMS.resetSim(seed);
+          console.log(`[RMS Step 1] Reset simulator to seed ${seed}`);
+          alert(`✅ Simulator reset to seed ${seed}`);
+        }
+      });
+    }
+    
+    if (simRunOnceBtn) {
+      simRunOnceBtn.addEventListener('click', function() {
+        if (window.RMS && window.RMS.runOnce) {
+          window.RMS.runOnce();
+          console.log('[RMS Step 1] RunOnce executed');
+        }
+      });
+    }
+    
+    if (simStepBtn) {
+      simStepBtn.addEventListener('click', function() {
+        if (window.RMS && window.RMS.step) {
+          window.RMS.step();
+          console.log('[RMS Step 1] Stepped forward 1 day');
+          
+          // Update history strip
+          updateHistoryStrip();
+        }
+      });
+    }
+    
+    function updateHistoryStrip() {
+      if (!window.RMS || !window.RMS.getHistory) return;
+      
+      const history = window.RMS.getHistory();
+      const historyStrip = document.getElementById('simHistoryStrip');
+      if (!historyStrip) return;
+      
+      historyStrip.innerHTML = history.map((snapshot, idx) => {
+        const date = new Date(snapshot.nowSeconds * 1000);
+        const timeStr = date.toLocaleTimeString('en-US', { hour12: false });
+        return `<div class="history-chip" onclick="window.RMS.loadSnapshot(${idx}); console.log('Loaded snapshot', ${idx});" style="background:#0891b2; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;">${timeStr}</div>`;
+      }).join('');
+    }
+    
+    console.log('[RM Step 1] Simulator controls initialized');
   }
   
   // Initialize on DOM ready

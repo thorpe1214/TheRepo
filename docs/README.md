@@ -27,13 +27,14 @@ This system is built on three core principles:
 ## Testing Baseline
 
 ### Current Baseline
-**Step 107-beta — Development Panel & Trend Overrides Complete (v1.07-beta)**
+**Step 107-beta + Step 1 Phase 1 — Simulator Foundation (v1.07-beta + Phase 1)**
 
 This is the current stable baseline for all manual and automated testing. Use this Step file for:
 - Manual smoke checks
 - Regression testing before opening PRs
 - Verifying new changes don't break existing functionality
 - AI-friendly deterministic testing (seeded property setup)
+- Simulator demo mode without CSV upload
 
 ### Key Features
 - **Seeded Mode**: Property setup and floorplan mappings auto-load when localStorage is empty
@@ -43,9 +44,12 @@ This is the current stable baseline for all manual and automated testing. Use th
 - **Dashboard Stats**: Real-time occupancy and metrics display
 - **Carry-Forward Mode**: Previous pricing baselines saved and reused between runs
 - **Pure Pricing Engine**: All pricing calculations powered by pure, testable functions
-- **Simulator Infrastructure**: Deterministic simulator for testing and demos
+- **Simulator Infrastructure**: Deterministic simulator for testing and demos (47 tests passing)
 - **Development Panel**: Developer tools with trend override sliders for controlled scenarios
 - **Engine Badge**: Visual indicator showing which pricing engine is active
+- **Simulator Demo Mode**: Load 50 units instantly without CSV upload
+- **Simulator Controls**: Total Units, Seed, Init/Reset/RunOnce/Step buttons
+- **window.RMS API**: Full browser API for simulator control
 
 ### Recent Milestones
 - **Step 107-beta — Development Panel & Trend Overrides**: Developer tools and trend sliders for controlled scenarios (Nov 6, 2025)
