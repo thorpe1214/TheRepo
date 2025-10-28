@@ -1396,8 +1396,15 @@
         
         <!-- Data Source Badge -->
         <div id="dataSourceBadge" style="margin-top:12px; display:none;">
-          <div class="badge" style="background:#0891b2; color:white;">
+          <div class="badge" id="dataSourceBadgeContent" style="background:#0891b2; color:white;">
             Data Source: <span id="dataSourceText">Real</span>
+          </div>
+        </div>
+        
+        <!-- Simulator Seed Badge (shows when simulation active) -->
+        <div id="simulatorSeedBadge" style="margin-top:8px; display:none;">
+          <div class="badge" style="background:#7c3aed; color:white;">
+            Simulation Mode: Seed <span id="simulatorSeedValue">12345</span>
           </div>
         </div>
 
@@ -1415,6 +1422,18 @@
             <button id="simResetBtn" class="btn xs">Reset</button>
           </div>
           
+          <!-- Floorplan Mix Sliders (Phase 2) -->
+          <div id="simMixSliders" style="margin:12px 0; padding:8px; background:#f8f9fa; border-radius:6px; display:none;">
+            <h4 style="margin:0 0 8px; font-size:0.9em;">Floorplan Mix (%)</h4>
+            <div id="simMixContainer">
+              <!-- Sliders will be injected here -->
+              <div class="note" style="font-size:12px;">No floorplans configured</div>
+            </div>
+            <div class="note" style="margin-top:8px; font-size:11px;">
+              <strong>Total must equal 100%.</strong> Units allocated using largest-remainder rounding.
+            </div>
+          </div>
+          
           <div class="setting-group" style="margin:8px 0;">
             <button id="simRunOnceBtn" class="btn xs">RunOnce</button>
             <button id="simStepBtn" class="btn xs">Step</button>
@@ -1424,6 +1443,12 @@
           
           <div id="simHistoryStrip" style="margin-top:8px; display:flex; gap:4px; flex-wrap:wrap; max-height:60px; overflow-y:auto; padding:4px; background:#1e293b; border-radius:4px;">
             <div class="note" style="font-size:11px; margin:0;">History strip will appear here</div>
+          </div>
+          
+          <!-- Invariant Warning (Phase 2) -->
+          <div id="simInvariantWarning" style="display:none; margin-top:8px; padding:8px; background:#fee2e2; border:1px solid #ef4444; border-radius:4px;">
+            <strong style="color:#dc2626;">⚠️ Invariant Violation</strong>
+            <div id="simInvariantMessage" style="font-size:12px; margin-top:4px;"></div>
           </div>
         </div>
 
@@ -5246,6 +5271,25 @@ document.addEventListener('DOMContentLoaded', function(){
             startingRents: { 'S0': 1200, 'A1': 1650, 'B2': 2150, 'C3': 2650 }
           });
           console.log(`[RMS Step 1] Initialized simulator with ${totalUnits} units, seed ${seed}`);
+          
+          // Show simulator badges
+          const seedBadge = document.getElementById('simulatorSeedBadge');
+          const seedValue = document.getElementById('simulatorSeedValue');
+          if (seedBadge) seedBadge.style.display = 'block';
+          if (seedValue) seedValue.textContent = seed.toString();
+          
+          const dataSourceBadge = document.getElementById('dataSourceBadge');
+          const dataSourceText = document.getElementById('dataSourceText');
+          if (dataSourceBadge) dataSourceBadge.style.display = 'block';
+          if (dataSourceText) dataSourceText.textContent = 'Simulation';
+          
+          // Show mix sliders
+          const mixSliders = document.getElementById('simMixSliders');
+          if (mixSliders) mixSliders.style.display = 'block';
+          
+          // Build mix sliders
+          buildMixSliders();
+          
           alert(`✅ Simulator initialized!\n\nTotal Units: ${totalUnits}\nSeed: ${seed}\n\nReady to run pricing.`);
         } else {
           console.warn('[RMS Step 1] window.RMS not available');
@@ -5282,8 +5326,37 @@ document.addEventListener('DOMContentLoaded', function(){
           
           // Update history strip
           updateHistoryStrip();
+          
+          // Check invariants and show warning if needed
+          checkInvariants();
         }
       });
+    }
+    
+    // Invariant checking and UI updates
+    function checkInvariants() {
+      if (!window.RMS || !window.RMS.getInvariantCheck) return;
+      
+      const check = window.RMS.getInvariantCheck();
+      const warningDiv = document.getElementById('simInvariantWarning');
+      const messageDiv = document.getElementById('simInvariantMessage');
+      
+      if (!warningDiv || !messageDiv) return;
+      
+      if (!check.valid) {
+        warningDiv.style.display = 'block';
+        messageDiv.textContent = check.message || 'Invariant violation detected';
+        
+        // Disable Step button
+        const stepBtn = document.getElementById('simStepBtn');
+        if (stepBtn) stepBtn.disabled = true;
+      } else {
+        warningDiv.style.display = 'none';
+        
+        // Re-enable Step button
+        const stepBtn = document.getElementById('simStepBtn');
+        if (stepBtn) stepBtn.disabled = false;
+      }
     }
     
     function updateHistoryStrip() {
@@ -5298,6 +5371,77 @@ document.addEventListener('DOMContentLoaded', function(){
         const timeStr = date.toLocaleTimeString('en-US', { hour12: false });
         return `<div class="history-chip" onclick="window.RMS.loadSnapshot(${idx}); console.log('Loaded snapshot', ${idx});" style="background:#0891b2; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;">${timeStr}</div>`;
       }).join('');
+    }
+    
+    // Build floorplan mix sliders
+    function buildMixSliders() {
+      const mixContainer = document.getElementById('simMixContainer');
+      if (!mixContainer) return;
+      
+      const floorplans = [
+        { code: 'S0', name: 'Studio', default: 25 },
+        { code: 'A1', name: '1BR', default: 40 },
+        { code: 'B2', name: '2BR', default: 30 },
+        { code: 'C3', name: '3BR', default: 5 }
+      ];
+      
+      mixContainer.innerHTML = '';
+      
+      floorplans.forEach(fp => {
+        const row = document.createElement('div');
+        row.style.marginBottom = '8px';
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.gap = '8px';
+        
+        row.innerHTML = `
+          <label style="min-width:60px; font-size:12px;">${fp.code}</label>
+          <input type="range" min="0" max="100" value="${fp.default}" class="mix-slider" data-fp="${fp.code}" style="flex:1;">
+          <span class="mix-value" data-fp="${fp.code}" style="width:50px; text-align:right; font-size:12px;">${fp.default}%</span>
+        `;
+        
+        mixContainer.appendChild(row);
+      });
+      
+      // Update total display
+      updateMixTotal();
+      
+      // Add event listeners
+      mixContainer.querySelectorAll('.mix-slider').forEach(slider => {
+        slider.addEventListener('input', function() {
+          const fp = this.getAttribute('data-fp');
+          const value = this.value;
+          const valueSpan = mixContainer.querySelector(`.mix-value[data-fp="${fp}"]`);
+          if (valueSpan) valueSpan.textContent = value + '%';
+          updateMixTotal();
+        });
+      });
+    }
+    
+    function updateMixTotal() {
+      const mixContainer = document.getElementById('simMixContainer');
+      if (!mixContainer) return;
+      
+      const sliders = mixContainer.querySelectorAll('.mix-slider');
+      let total = 0;
+      sliders.forEach(slider => {
+        total += parseInt(slider.value);
+      });
+      
+      // Add total display if not exists
+      let totalDisplay = mixContainer.querySelector('.mix-total');
+      if (!totalDisplay) {
+        totalDisplay = document.createElement('div');
+        totalDisplay.className = 'mix-total';
+        totalDisplay.style.marginTop = '8px';
+        totalDisplay.style.padding = '4px 8px';
+        totalDisplay.style.background = total === 100 ? '#dcfce7' : '#fef3c7';
+        totalDisplay.style.borderRadius = '4px';
+        mixContainer.appendChild(totalDisplay);
+      }
+      
+      totalDisplay.textContent = `Total: ${total}%`;
+      totalDisplay.style.background = total === 100 ? '#dcfce7' : (total > 100 ? '#fee2e2' : '#fef3c7');
     }
     
     console.log('[RM Step 1] Simulator controls initialized');

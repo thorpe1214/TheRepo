@@ -5,18 +5,41 @@ All notable changes to the Revenue Management System will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.08.0-beta] - 2025-10-28
+
+### Added - Step 1 Simulator Foundation — Phase 2
+
+**Status**: Phase 2 complete ✅, ready for testing 🧪
+
+This phase wires up the simulator with full functionality: history tracking, invariant enforcement, data source badges, and floorplan mix sliders with largest-remainder rounding.
+
+#### What Works (Phase 2)
+- **History Wiring**: Ring buffer (~200 snapshots), clickable chips show hh:mm:ss
+- **Invariant Enforcement**: Caps, floors, unit counts validated after each step
+- **Data Source Badges**: Shows "Simulation Mode: Seed ####" or "Real rent roll"
+- **Floorplan Mix Sliders**: Dynamic sliders with auto-normalization to 100%
+- **Invariant Warning**: Displays violation message and disables Step if fail
+- **CSV Flow Preserved**: All existing CSV functionality untouched
+
+#### Technical Details
+- Invariant checks enforce: unit counts sum to total, no negative rents, bucket counts correct
+- History strip updates on each `step()` call
+- Mix sliders built dynamically for S0, A1, B2, C3 floorplans
+- Badges toggle between Simulation and Real modes
+- All 21 tests passing ✅
+
 ## [1.08.0-alpha] - 2025-10-28
 
 ### Added - Step 1 Simulator Foundation — Phase 1
 
-**Status**: Phase 1 complete ✅, ready for testing 🧪
+**Status**: Phase 1 complete ✅
 
-This phase adds simulator controls to the Development Panel, allowing testing without CSV upload. The demo button seeds 50 units instantly, and simulator controls provide manual testing capabilities.
+This phase added simulator controls to the Development Panel, allowing testing without CSV upload. The demo button seeds 50 units instantly.
 
 #### What Works (Phase 1)
 - **Demo Button**: Loads 50 simulated units (S0, A1, B2, C3) instantly
 - **Simulator Controls UI**: Total Units, Seed, Init, Reset, RunOnce, Step buttons
-- **History Strip Container**: Ready for Phase 2 implementation
+- **History Strip Container**: UI ready for wiring
 - **window.RMS API**: Full browser API exposed with stubs
 - **No Regressions**: CSV flow unchanged, all tests passing
 
@@ -24,15 +47,7 @@ This phase adds simulator controls to the Development Panel, allowing testing wi
 - Added `config/flags.ts` for feature flags
 - Added `src/sim/browser-adapter.ts` for window.RMS API
 - Updated Step 104 to show simulator controls
-- History strip container visible but not wired yet
 - All 21 tests passing ✅
-
-#### What's Next (Phase 2)
-- Wire history strip to update on Step
-- Add invariant enforcement (caps, floors, counts)
-- Add data source badges (Simulation vs Real)
-- Add floorplan mix sliders
-- Implement Start/Stop/Speed controls
 
 ## [0.91.0] - 2025-10-22
 

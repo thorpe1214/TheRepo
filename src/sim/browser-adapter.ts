@@ -222,12 +222,73 @@ class BrowserSimulatorAPI {
   }
 
   /**
+   * Get last invariant check result (public for UI)
+   */
+  private lastInvariantCheck: { valid: boolean; message?: string } = { valid: true };
+
+  /**
+   * Get last invariant check result
+   */
+  getInvariantCheck(): { valid: boolean; message?: string } {
+    return this.lastInvariantCheck;
+  }
+
+  /**
+   * Check invariants after a step
+   */
+  private checkInvariants(): { valid: boolean; message?: string } {
+    if (!this.simDataProvider) {
+      return { valid: true };
+    }
+    
+    const units = this.simDataProvider.getUnits();
+    const boxScore = this.simDataProvider.getBoxScore();
+    
+    // Check: total units match expected
+    if (this.config && units.length !== this.config.totalUnits) {
+      return {
+        valid: false,
+        message: `Unit count mismatch: expected ${this.config.totalUnits}, got ${units.length}`
+      };
+    }
+    
+    // Check: bucket counts sum to total
+    const sumBuckets = boxScore.occupied + boxScore.onNotice + boxScore.vacant + boxScore.preleased;
+    if (sumBuckets !== boxScore.totalUnits) {
+      return {
+        valid: false,
+        message: `Bucket counts don't sum: ${boxScore.occupied}+${boxScore.onNotice}+${boxScore.vacant}+${boxScore.preleased} ≠ ${boxScore.totalUnits}`
+      };
+    }
+    
+    // Check: no negative rents
+    const negativeRents = units.filter(u => u.currentRent < 0);
+    if (negativeRents.length > 0) {
+      return {
+        valid: false,
+        message: `Negative rent detected on ${negativeRents.length} units`
+      };
+    }
+    
+    return { valid: true };
+  }
+
+  /**
    * Advance one day in simulation
    */
   step(): void {
     if (this.mode === 'simulation' && this.simDataProvider) {
       this.simDataProvider.advanceDays(1);
-      this.captureSnapshot();
+      
+      // Capture snapshot and check invariants
+      const snapshot = this.getSnapshot();
+      this.history.add(snapshot);
+      
+      this.lastInvariantCheck = this.checkInvariants();
+      if (!this.lastInvariantCheck.valid) {
+        console.error('[RMS] Invariant violation:', this.lastInvariantCheck.message);
+      }
+      
       console.log(`[RMS] Stepped forward 1 day`);
     } else {
       console.log('[RMS] Not in simulation mode or provider not initialized');
@@ -248,15 +309,27 @@ class BrowserSimulatorAPI {
   getSnapshot(): SimulatorSnapshot {
     if (this.mode === 'simulation' && this.simDataProvider) {
       const units = this.simDataProvider.getUnits();
-      const boxScore = this.simDataProvider.getBoxScore();
+      const rawBoxScore = this.simDataProvider.getBoxScore();
       const today = this.simDataProvider.getToday();
+      
+      // Convert box score to snapshot format
+      const boxScore = {
+        totalUnits: rawBoxScore.totalUnits,
+        occupiedUnits: rawBoxScore.occupied,
+        onNoticeUnits: rawBoxScore.onNotice,
+        vacantReadyUnits: rawBoxScore.vacant,
+        preleasedUnits: rawBoxScore.preleased,
+        occupancyRate: rawBoxScore.occupancyRate,
+        projectedOccupancy: rawBoxScore.projectedOccupancy,
+        vacantDaysAvg: 0, // TODO: Compute from units
+      };
       
       // Classify units into lists
       const lists = {
         occupied: units.filter(u => u.status.toLowerCase().includes('occupied') && !u.status.toLowerCase().includes('notice')),
         onNotice: units.filter(u => u.status.toLowerCase().includes('notice')),
-        vacantReady: units.filter(u => u.status === 'Vacant'),
-        preleased: units.filter(u => u.status === 'Preleased'),
+        vacantReady: units.filter(u => u.status === 'Vacant' || u.status.toLowerCase().includes('vacant')),
+        preleased: units.filter(u => u.status === 'Preleased' || u.status.toLowerCase().includes('preleased')),
       };
       
       return {
@@ -365,6 +438,9 @@ if (typeof window !== 'undefined') {
     getSnapshot: () => apiObj.getSnapshot(),
     getHistory: () => apiObj.getHistory(),
     loadSnapshot: (index: number) => apiObj.loadSnapshot(index),
+    
+    // Invariant checking
+    getInvariantCheck: () => apiObj.getInvariantCheck(),
     
     // Auto-stepping
     start: (intervalMs?: number) => apiObj.start(intervalMs),
