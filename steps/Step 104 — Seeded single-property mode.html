@@ -1441,6 +1441,14 @@
             <button id="simStopBtn" class="btn xs" disabled>Stop</button>
           </div>
           
+          <!-- Speed Control -->
+          <div class="setting-group" style="margin:8px 0;">
+            <label>Speed: </label>
+            <button id="simSpeed1Btn" class="btn xs" style="background:#059669;">1×</button>
+            <button id="simSpeed5Btn" class="btn xs">5×</button>
+            <button id="simSpeed10Btn" class="btn xs">10×</button>
+          </div>
+          
           <div id="simHistoryStrip" style="margin-top:8px; display:flex; gap:4px; flex-wrap:wrap; max-height:60px; overflow-y:auto; padding:4px; background:#1e293b; border-radius:4px;">
             <div class="note" style="font-size:11px; margin:0;">History strip will appear here</div>
           </div>
@@ -4923,13 +4931,114 @@ document.addEventListener('DOMContentLoaded', function(){
 (function() {
   'use strict';
   
+  // Runner state for Start/Stop continuous stepping
+  let runState = {
+    isRunning: false,
+    timerId: null,
+    speed: 1, // 1, 5, or 10
+    isProcessing: false
+  };
+  
+  // Speed intervals: 1× = 750ms, 5× = 250ms, 10× = 100ms
+  const speedIntervals = {
+    1: 750,
+    5: 250,
+    10: 100
+  };
+  
+  // Start continuous stepping
+  function startRunner(speed) {
+    if (runState.isRunning) {
+      console.log('[RMS] Already running, no-op');
+      return;
+    }
+    
+    if (!speed || !speedIntervals[speed]) {
+      speed = 1;
+    }
+    
+    runState.isRunning = true;
+    runState.speed = speed;
+    
+    const interval = speedIntervals[speed];
+    console.log(`[RMS] Starting runner at ${speed}× speed (interval: ${interval}ms)`);
+    
+    runState.timerId = setInterval(function() {
+      // Guard against re-entrancy
+      if (runState.isProcessing) {
+        console.log('[RMS] Step still processing, skipping tick');
+        return;
+      }
+      
+      runState.isProcessing = true;
+      
+      try {
+        // Call the step function
+        if (window.RMS && window.RMS.step) {
+          window.RMS.step();
+          
+          // Update history strip if available
+          if (typeof updateHistoryStrip === 'function') {
+            updateHistoryStrip();
+          }
+          
+          // Check invariants if available
+          if (typeof checkInvariants === 'function') {
+            checkInvariants();
+          }
+        }
+      } finally {
+        runState.isProcessing = false;
+      }
+    }, interval);
+  }
+  
+  // Stop continuous stepping
+  function stopRunner() {
+    if (!runState.isRunning) {
+      console.log('[RMS] Not running, no-op');
+      return;
+    }
+    
+    console.log('[RMS] Stopping runner');
+    runState.isRunning = false;
+    
+    if (runState.timerId) {
+      clearInterval(runState.timerId);
+      runState.timerId = null;
+    }
+  }
+  
+  // Set speed (if running, restart at new rate)
+  function setSpeed(speed) {
+    if (!speed || !speedIntervals[speed]) {
+      console.warn('[RMS] Invalid speed:', speed);
+      return;
+    }
+    
+    console.log(`[RMS] Setting speed to ${speed}×`);
+    runState.speed = speed;
+    
+    // If running, restart at new speed
+    if (runState.isRunning) {
+      stopRunner();
+      startRunner(speed);
+    }
+  }
+  
   // Create window.RMS API stub until browser-adapter.ts is compiled
   window.RMS = window.RMS || {
     mode: 'real',
     history: [],
     lastInvariantCheck: { valid: true },
     
-    setMode: function(mode) { this.mode = mode; console.log('[RMS] Mode set to:', mode); },
+    setMode: function(mode) { 
+      this.mode = mode; 
+      console.log('[RMS] Mode set to:', mode);
+      if (mode === 'real') {
+        stopRunner(); // Stop on mode switch
+      }
+    },
     getMode: function() { return this.mode; },
     
     initSim: function(config) {
@@ -4938,6 +5047,7 @@ document.addEventListener('DOMContentLoaded', function(){
       this.config = config;
       this.history = [];
       this.lastInvariantCheck = { valid: true };
+      stopRunner(); // Stop on init
     },
     
     resetSim: function(seed) {
@@ -4945,6 +5055,7 @@ document.addEventListener('DOMContentLoaded', function(){
       if (this.config) this.config.seed = seed;
       this.history = [];
       this.lastInvariantCheck = { valid: true };
+      stopRunner(); // Stop on reset
     },
     
     runOnce: function() { console.log('[RMS] RunOnce'); },
@@ -4965,7 +5076,13 @@ document.addEventListener('DOMContentLoaded', function(){
     
     getHistory: function() { return this.history; },
     loadSnapshot: function(index) { console.log('[RMS] Load snapshot:', index); },
-    getInvariantCheck: function() { return this.lastInvariantCheck; }
+    getInvariantCheck: function() { return this.lastInvariantCheck; },
+    
+    // Start/Stop controls
+    start: function(speed) { startRunner(speed || 1); },
+    stop: function() { stopRunner(); },
+    setSpeed: function(speed) { setSpeed(speed); },
+    getRunningState: function() { return runState; }
   };
   
   console.log('[RM Step 1] window.RMS API stub loaded');
@@ -5313,6 +5430,9 @@ document.addEventListener('DOMContentLoaded', function(){
     const simStepBtn = document.getElementById('simStepBtn');
     const simStartBtn = document.getElementById('simStartBtn');
     const simStopBtn = document.getElementById('simStopBtn');
+    const simSpeed1Btn = document.getElementById('simSpeed1Btn');
+    const simSpeed5Btn = document.getElementById('simSpeed5Btn');
+    const simSpeed10Btn = document.getElementById('simSpeed10Btn');
     
     if (simInitBtn) {
       simInitBtn.addEventListener('click', function() {
@@ -5346,6 +5466,10 @@ document.addEventListener('DOMContentLoaded', function(){
           
           // Build mix sliders
           buildMixSliders();
+          
+          // Enable Start button
+          const startBtn = document.getElementById('simStartBtn');
+          if (startBtn) startBtn.disabled = false;
           
           alert(`✅ Simulator initialized!\n\nTotal Units: ${totalUnits}\nSeed: ${seed}\n\nReady to run pricing.`);
         } else {
@@ -5389,6 +5513,79 @@ document.addEventListener('DOMContentLoaded', function(){
         }
       });
     }
+    
+    // Start/Stop handlers with button state management
+    if (simStartBtn) {
+      simStartBtn.addEventListener('click', function() {
+        if (!window.RMS) return;
+        
+        const state = window.RMS.getRunningState ? window.RMS.getRunningState() : { isRunning: false, speed: 1 };
+        const speed = state.speed || 1;
+        
+        console.log(`[RMS Step 1] Start at ${speed}× speed`);
+        window.RMS.start(speed);
+        
+        // Update button states
+        if (simStartBtn) simStartBtn.disabled = true;
+        if (simStopBtn) simStopBtn.disabled = false;
+        if (simStepBtn) simStepBtn.disabled = true; // Disable manual Step while running
+      });
+    }
+    
+    if (simStopBtn) {
+      simStopBtn.addEventListener('click', function() {
+        if (!window.RMS) return;
+        
+        console.log('[RMS Step 1] Stop');
+        window.RMS.stop();
+        
+        // Update button states
+        if (simStartBtn) simStartBtn.disabled = false;
+        if (simStopBtn) simStopBtn.disabled = true;
+        if (simStepBtn) simStepBtn.disabled = false; // Re-enable manual Step
+      });
+    }
+    
+    // Speed control handlers
+    function updateSpeedButtons(selectedSpeed) {
+      const buttons = [simSpeed1Btn, simSpeed5Btn, simSpeed10Btn];
+      buttons.forEach((btn, idx) => {
+        const speed = [1, 5, 10][idx];
+        if (btn) {
+          if (speed === selectedSpeed) {
+            btn.style.background = '#059669';
+            btn.style.color = 'white';
+          } else {
+            btn.style.background = '';
+            btn.style.color = '';
+          }
+        }
+      });
+    }
+    
+    if (simSpeed1Btn) {
+      simSpeed1Btn.addEventListener('click', function() {
+        window.RMS.setSpeed(1);
+        updateSpeedButtons(1);
+      });
+    }
+    
+    if (simSpeed5Btn) {
+      simSpeed5Btn.addEventListener('click', function() {
+        window.RMS.setSpeed(5);
+        updateSpeedButtons(5);
+      });
+    }
+    
+    if (simSpeed10Btn) {
+      simSpeed10Btn.addEventListener('click', function() {
+        window.RMS.setSpeed(10);
+        updateSpeedButtons(10);
+      });
+    }
+    
+    // Initial speed button state
+    updateSpeedButtons(1);
     
     // Invariant checking and UI updates
     function checkInvariants() {
