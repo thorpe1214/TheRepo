@@ -9,6 +9,281 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./../assets/styles.css" />
 
+<style>
+/* Simulator Panel Dark Theme Styles (Step 104) */
+:root {
+  --bg: #0f172a;
+  --card: #1e2838;
+  --muted: #293446;
+  --text: #ffffff;
+  --text-dim: #ffffff;
+  --border: #4a5467;
+  --good: #22c55e;
+  --warn: #f59e0b;
+  --bad: #ef4444;
+  --chip: #0ea5e9;
+  --up: #22c55e;
+  --down: #ef4444;
+  --accent: #60a5fa;
+}
+
+#dev-sim-panel .card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  margin-bottom: 16px;
+}
+
+#dev-sim-panel .card h4 {
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  color: var(--text);
+  margin: 0 0 12px 0;
+  font-size: 0.9em;
+}
+
+#dev-sim-panel input[type="number"],
+#dev-sim-panel select {
+  height: 40px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+#dev-sim-panel input[type="number"]:focus,
+#dev-sim-panel select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(96,165,250,0.2);
+}
+
+#dev-sim-panel input[readonly] {
+  background: var(--muted);
+  cursor: not-allowed;
+}
+
+#dev-sim-panel label {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+#dev-sim-panel .mix-pct {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+/* Invariant Banner */
+#simInvariantBanner {
+  border-radius: 9999px;
+  padding: 10px 16px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#simInvariantBanner[data-status="ok"] {
+  background: rgba(34,197,94,0.12);
+  border: 1px solid rgba(34,197,94,0.35);
+  color: var(--good);
+}
+
+#simInvariantBanner[data-status="error"] {
+  background: rgba(239,68,68,0.12);
+  border: 1px solid rgba(239,68,68,0.35);
+  color: var(--bad);
+}
+
+#simInvariantBanner ul {
+  list-style: none;
+  margin: 4px 0 0 0;
+  padding: 0;
+}
+
+#simInvariantBanner ul li {
+  color: var(--text);
+  margin-top: 4px;
+}
+
+/* Prices Panel Table */
+#simPricesPanel .prices-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+#simPricesPanel .prices-table thead {
+  position: sticky;
+  top: 0;
+  background: var(--muted);
+  z-index: 10;
+}
+
+#simPricesPanel .prices-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 2px solid var(--border);
+}
+
+#simPricesPanel .prices-table th:last-child {
+  text-align: left;
+}
+
+#simPricesPanel .prices-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+#simPricesPanel .prices-table tbody tr:hover {
+  background: var(--muted);
+}
+
+#simPricesPanel .numeric {
+  text-align: right;
+}
+
+#simPricesPanel .delta-up {
+  color: var(--up);
+}
+
+#simPricesPanel .delta-down {
+  color: var(--down);
+}
+
+#simPricesPanel .reason-chip {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 9999px;
+  background: rgba(14,165,233,0.15);
+  border: 1px solid rgba(14,165,233,0.5);
+  color: #e0f2fe;
+  font-size: 11px;
+  margin-right: 6px;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+/* History Chips */
+#simHistoryStrip .history-chip {
+  background: var(--muted);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 9999px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s;
+}
+
+#simHistoryStrip .history-chip:hover {
+  background: var(--accent);
+  color: #0b1020;
+  border-color: var(--accent);
+}
+
+#simHistoryStrip .history-chip:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+#simHistoryStrip .history-chip.active {
+  background: var(--accent);
+  color: #0b1020;
+  border-color: var(--accent);
+}
+
+/* Buttons */
+#dev-sim-panel .btn.xs {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+#dev-sim-panel .btn.xs:not(:disabled) {
+  background: var(--accent);
+  color: #0b1020;
+}
+
+#dev-sim-panel .btn.xs:not(:disabled):hover {
+  background: #3b82f6;
+}
+
+#dev-sim-panel .btn.xs:disabled {
+  background: var(--muted);
+  color: var(--text-dim);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+#dev-sim-panel .btn.xs.secondary {
+  background: var(--muted);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+#dev-sim-panel .btn.xs.secondary:hover {
+  background: var(--border);
+}
+
+/* Settings Group */
+#dev-sim-panel .setting-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Total Row */
+#simMixTotalRow {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+#simMixTotalRow[data-status="ok"] {
+  background: rgba(34,197,94,0.12);
+  border: 1px solid rgba(34,197,94,0.35);
+  color: var(--good);
+}
+
+#simMixTotalRow[data-status="error"] {
+  background: rgba(239,68,68,0.12);
+  border: 1px solid rgba(239,68,68,0.35);
+  color: var(--bad);
+}
+
+#simMixTotalRow[data-status="warn"] {
+  background: rgba(245,158,11,0.12);
+  border: 1px solid rgba(245,158,11,0.35);
+  color: var(--warn);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  #dev-sim-panel .card {
+    padding: 12px 16px;
+  }
+  
+  #dev-sim-panel .setting-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+</style>
+
 
 
 <!-- Sync target to hidden bandLow/bandHigh for backward compatibility -->
@@ -1409,7 +1684,7 @@
         </div>
 
         <!-- Simulator Controls (Step 1) -->
-        <div id="simulatorControls" style="display:none; margin-top:16px;">
+        <div id="dev-sim-panel" style="display:none; margin-top:16px;">
           <h3 style="margin:0 0 12px; font-size:1em;">Simulator Controls</h3>
           
           <div class="setting-group" style="margin:8px 0;">
@@ -1422,15 +1697,31 @@
             <button id="simResetBtn" class="btn xs">Reset</button>
           </div>
           
-          <!-- Floorplan Mix Sliders (Phase 2) -->
-          <div id="simMixSliders" style="margin:12px 0; padding:8px; background:#f8f9fa; border-radius:6px; display:none;">
-            <h4 style="margin:0 0 8px; font-size:0.9em;">Floorplan Mix (%)</h4>
+          <!-- Floorplan Mix Counts (Phase 2) -->
+          <div id="simMixSliders" class="card" style="display:none;">
+            <h4 style="margin:0 0 8px; font-size:0.9em;">Floorplan Mix (Units)</h4>
+            
+            <!-- Remainder FP Selector -->
+            <div style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+              <label style="font-size:11px;">Remainder FP:</label>
+              <select id="simRemainderFPSelector" style="padding:2px 4px; font-size:11px;">
+                <option value="S0">S0</option>
+                <option value="A1">A1</option>
+                <option value="B2">B2</option>
+                <option value="C3" selected>C3</option>
+              </select>
+              <span style="font-size:10px; color:var(--text-dim);">Remainder is auto-balanced</span>
+            </div>
+            
             <div id="simMixContainer">
-              <!-- Sliders will be injected here -->
+              <!-- Inputs will be injected here -->
               <div class="note" style="font-size:12px;">No floorplans configured</div>
             </div>
-            <div class="note" style="margin-top:8px; font-size:11px;">
-              <strong>Total must equal 100%.</strong> Units allocated using largest-remainder rounding.
+            
+            <!-- Total row -->
+            <div id="simMixTotalRow" style="margin-top:12px; padding:10px 12px; border-radius:6px; font-size:13px; font-weight:600; display:flex; justify-content:space-between;">
+              <span><strong>Total:</strong></span>
+              <span id="simMixTotalValue">0 units</span>
             </div>
           </div>
           
@@ -1449,8 +1740,13 @@
             <button id="simSpeed10Btn" class="btn xs">10×</button>
           </div>
           
+          <!-- Invariant Status Banner -->
+          <div id="simInvariantBanner" style="display:none;">
+            <div id="simInvariantMessage"></div>
+          </div>
+          
           <!-- Trend % Controls (80–100) -->
-          <div id="simTrendOccPctControls" style="margin:12px 0; padding:8px; background:#f0f9ff; border-radius:6px; display:none;">
+          <div id="simTrendOccPctControls" class="card" style="display:none;">
             <h4 style="margin:0 0 8px; font-size:0.9em;">Floorplan Trend % (80–100)</h4>
             <div id="simTrendOccPctContainer">
               <!-- Controls will be injected here -->
@@ -1459,14 +1755,14 @@
           </div>
           
           <!-- Prices & Deltas Panel -->
-          <div id="simPricesPanel" style="margin:12px 0; padding:8px; background:#fef3c7; border-radius:6px; display:none;">
+          <div id="simPricesPanel" class="card" style="display:none;">
             <h4 style="margin:0 0 8px; font-size:0.9em;">Per-Floorplan Prices (current run)</h4>
             <div id="simPricesContent">
               <div class="note" style="font-size:12px;">No pricing data yet. Click Step or Start to run.</div>
             </div>
           </div>
           
-          <div id="simHistoryStrip" style="margin-top:8px; display:flex; gap:4px; flex-wrap:wrap; max-height:60px; overflow-y:auto; padding:4px; background:#1e293b; border-radius:4px;">
+          <div id="simHistoryStrip" class="card" style="margin-top:8px; display:flex; gap:4px; flex-wrap:wrap; max-height:80px; overflow-y:auto; padding:8px;">
             <div class="note" style="font-size:11px; margin:0;">History strip will appear here</div>
           </div>
           
@@ -4799,8 +5095,8 @@ document.addEventListener('DOMContentLoaded', function(){
       trendOverridePctByFP: {},
       flags: {
         enableSimulation: false,
-        enableCarryForward: true,
-      },
+        enableCarryForward: true
+      }
     };
   };
   
@@ -5004,9 +5300,17 @@ document.addEventListener('DOMContentLoaded', function(){
             updatePricesPanel();
           }
           
-          // Check invariants if available
-          if (typeof checkInvariants === 'function') {
-            checkInvariants();
+          // Check invariants with latest snapshot
+          if (window.RMS && window.RMS.getHistory) {
+            const history = window.RMS.getHistory();
+            const snapshot = history.length > 0 ? history[history.length - 1] : null;
+            computeAndRenderInvariants(snapshot);
+            
+            // If invariant failed, stop runner
+            if (window.RMS.lastInvariantStatus && !window.RMS.lastInvariantStatus.ok) {
+              console.warn('[RMS] Invariant violation detected, stopping runner');
+              window.RMS.stop();
+            }
           }
         }
       } finally {
@@ -5028,6 +5332,11 @@ document.addEventListener('DOMContentLoaded', function(){
     if (runState.timerId) {
       clearInterval(runState.timerId);
       runState.timerId = null;
+    }
+    
+    // Update button states
+    if (window.updateButtonStates) {
+      window.updateButtonStates(false); // isRunning = false
     }
   }
   
@@ -5092,7 +5401,7 @@ document.addEventListener('DOMContentLoaded', function(){
       console.log('[RMS] Trend % overrides reset');
     },
     
-    getTrendOccPct: function() { return { ...this.trendOccPctByFP }; }
+    getTrendOccPct: function() { return { ...this.trendOccPctByFP }; },
     
     initSim: function(config) {
       console.log('[RMS] Init simulation:', config);
@@ -5149,6 +5458,181 @@ document.addEventListener('DOMContentLoaded', function(){
     getHistory: function() { return this.history; },
     loadSnapshot: function(index) { console.log('[RMS] Load snapshot:', index); },
     getInvariantCheck: function() { return this.lastInvariantCheck; },
+    
+    // Floorplan Mix Counts API
+    mixCountsByFP: {}, // Track unit counts per FP
+    remainderFP: 'C3', // Default remainder FP
+    
+    setMixCounts: function(map) {
+      this.mixCountsByFP = { ...map };
+      try {
+        localStorage.setItem('rms:sim:mixCounts', JSON.stringify(this.mixCountsByFP));
+      } catch (e) {
+        console.warn('[RMS] Failed to persist mixCounts:', e);
+      }
+      console.log('[RMS] Mix counts set:', this.mixCountsByFP);
+    },
+    
+    getMixCounts: function() {
+      try {
+        const stored = localStorage.getItem('rms:sim:mixCounts');
+        if (stored) {
+          this.mixCountsByFP = JSON.parse(stored);
+        }
+      } catch (e) {
+        console.warn('[RMS] Failed to load mixCounts:', e);
+      }
+      return { ...this.mixCountsByFP };
+    },
+    
+    setRemainderFP: function(fp) {
+      this.remainderFP = fp;
+      try {
+        localStorage.setItem('rms:sim:remainderFP', fp);
+      } catch (e) {
+        console.warn('[RMS] Failed to persist remainderFP:', e);
+      }
+      console.log('[RMS] Remainder FP set to:', fp);
+    },
+    
+    getRemainderFP: function() {
+      try {
+        const stored = localStorage.getItem('rms:sim:remainderFP');
+        if (stored) {
+          this.remainderFP = stored;
+        }
+      } catch (e) {
+        console.warn('[RMS] Failed to load remainderFP:', e);
+      }
+      return this.remainderFP || 'C3';
+    },
+    
+    // Invariant checking
+    lastInvariantStatus: { ok: true, issues: [] },
+    
+    checkInvariants: function(snapshot) {
+      const issues = [];
+      
+      // Get current state
+      const totalUnits = this.config?.totalUnits || parseInt(document.getElementById('simTotalUnits')?.value || '200');
+      const mixCounts = this.mixCountsByFP;
+      const trendOverrides = this.trendOccPctByFP;
+      const remainderFP = this.remainderFP || 'C3';
+      
+      // 1. Totals: sum(mixCountsByFP) === totalUnits
+      const sum = Object.values(mixCounts).reduce((a, b) => a + b, 0);
+      if (Math.abs(sum - totalUnits) > 0.01) {
+        issues.push({
+          code: 'TOTAL_MISMATCH',
+          level: 'error',
+          detail: `Sum must equal Total Units (got ${sum}, expected ${totalUnits})`,
+          sum: sum,
+          expected: totalUnits
+        });
+      }
+      
+      // 2. Counts non-negative and integers
+      for (const fp in mixCounts) {
+        const count = mixCounts[fp];
+        if (count < 0) {
+          issues.push({
+            code: 'NEGATIVE_COUNT',
+            level: 'error',
+            detail: `Count cannot be negative (${fp}: ${count})`,
+            fp: fp
+          });
+        }
+        if (!Number.isInteger(count)) {
+          issues.push({
+            code: 'NEGATIVE_COUNT',
+            level: 'warn',
+            detail: `Count must be integer (${fp}: ${count})`,
+            fp: fp
+          });
+        }
+      }
+      
+      // 3. Trend bounds: [80%, 100%]
+      for (const fp in trendOverrides) {
+        const val = trendOverrides[fp];
+        if (val < 80 || val > 100) {
+          issues.push({
+            code: 'TREND_OUT_OF_RANGE',
+            level: 'error',
+            detail: `Trend % must be 80-100% (${fp}: ${val}%)`,
+            fp: fp,
+            value: val
+          });
+        }
+      }
+      
+      // 4. Bucket identity (from snapshot)
+      if (snapshot && snapshot.boxScore) {
+        const bs = snapshot.boxScore;
+        const bucketsSum = (bs.occupiedUnits || 0) + 
+                          (bs.onNoticeUnits || 0) + 
+                          (bs.vacantReadyUnits || 0) + 
+                          (bs.preleasedUnits || 0) + 
+                          (bs.offlineUnits || 0);
+        if (Math.abs(bucketsSum - totalUnits) > 0.01) {
+          issues.push({
+            code: 'BUCKET_MISMATCH',
+            level: 'error',
+            detail: `Bucket sum ${bucketsSum} does not equal Total Units ${totalUnits}`,
+            bucketsSum: bucketsSum,
+            expected: totalUnits
+          });
+        }
+        
+        // Individual bucket non-negative
+        if (bs.occupiedUnits < 0 || bs.onNoticeUnits < 0 || bs.vacantReadyUnits < 0 || bs.preleasedUnits < 0) {
+          issues.push({
+            code: 'BUCKET_MISMATCH',
+            level: 'error',
+            detail: 'All bucket counts must be non-negative',
+          });
+        }
+      }
+      
+      // 5. Price guards (from snapshot)
+      if (snapshot && snapshot.pricesByFP) {
+        for (const fp in snapshot.pricesByFP) {
+          const price = snapshot.pricesByFP[fp];
+          if (price.newRent < 0) {
+            issues.push({
+              code: 'NEGATIVE_RENT',
+              level: 'error',
+              detail: `Rent cannot be negative (${fp}: $${price.newRent})`,
+              fp: fp
+            });
+          }
+          // TODO: Add floor/cap violations when we have floor/cap config
+        }
+      }
+      
+      // 6. Empty checks (no counts set yet)
+      if (Object.keys(mixCounts).length === 0 && totalUnits > 0) {
+        issues.push({
+          code: 'TOTAL_MISMATCH',
+          level: 'warn',
+          detail: 'Mix counts not yet configured',
+        });
+      }
+      
+      const status = {
+        ok: issues.length === 0,
+        issues: issues
+      };
+      
+      this.lastInvariantStatus = status;
+      this.lastInvariantCheck = status;
+      
+      return status;
+    },
+    
+    getInvariantStatus: function() {
+      return this.lastInvariantStatus || { ok: true, issues: [] };
+    },
     
     // Start/Stop controls
     start: function(speed) { startRunner(speed || 1); },
@@ -5488,9 +5972,15 @@ document.addEventListener('DOMContentLoaded', function(){
         console.log('[RM Simulator] Demo data loaded:', demoData.length, 'units');
         
         // Show simulator controls
-        const simulatorControls = document.getElementById('simulatorControls');
+        const simulatorControls = document.getElementById('dev-sim-panel');
         if (simulatorControls) {
           simulatorControls.style.display = 'block';
+        }
+        
+        // Show dev panel if hidden
+        const devPanelCard = document.getElementById('devPanelCard');
+        if (devPanelCard) {
+          devPanelCard.style.display = 'block';
         }
       });
     }
@@ -5530,13 +6020,17 @@ document.addEventListener('DOMContentLoaded', function(){
           }
           
           window.RMS.setMode('simulation');
+          
+          // Get mix counts from UI
+          const mixCounts = window.RMS.getMixCounts();
+          
           window.RMS.initSim({
             seed,
             totalUnits,
-            mixByFP: { 'S0': 25, 'A1': 40, 'B2': 30, 'C3': 5 },
+            mixCountsByFP: mixCounts,
             startingRents: { 'S0': 1200, 'A1': 1650, 'B2': 2150, 'C3': 2650 }
           });
-          console.log(`[RMS Step 1] Initialized simulator with ${totalUnits} units, seed ${seed}`);
+          console.log(`[RMS Step 1] Initialized simulator with ${totalUnits} units, seed ${seed}, mix counts:`, mixCounts);
           
           // Show simulator badges
           const seedBadge = document.getElementById('simulatorSeedBadge');
@@ -5549,12 +6043,57 @@ document.addEventListener('DOMContentLoaded', function(){
           if (dataSourceBadge) dataSourceBadge.style.display = 'block';
           if (dataSourceText) dataSourceText.textContent = 'Simulation';
           
-          // Show mix sliders
+          // Show mix sliders and all simulator sections
           const mixSliders = document.getElementById('simMixSliders');
-          if (mixSliders) mixSliders.style.display = 'block';
+          if (mixSliders) {
+            mixSliders.style.display = 'block';
+            mixSliders.style.visibility = 'visible';
+            mixSliders.style.opacity = '1';
+            console.log('[RMS Init] Showing mix sliders');
+          } else {
+            console.warn('[RMS Init] simMixSliders element not found');
+          }
           
-          // Build mix sliders
-          buildMixSliders();
+          // Show trend controls
+          const trendControls = document.getElementById('simTrendOccPctControls');
+          if (trendControls) {
+            trendControls.style.display = 'block';
+          }
+          
+          // Show prices panel
+          const pricesPanel = document.getElementById('simPricesPanel');
+          if (pricesPanel) {
+            pricesPanel.style.display = 'block';
+          }
+          
+          // Build mix counts (replaces sliders)
+          console.log('[RMS Init] About to call buildMixCounts()');
+          console.log('[RMS Init] simMixSliders element:', mixSliders ? 'EXISTS' : 'MISSING');
+          if (mixSliders) {
+            console.log('[RMS Init] simMixSliders.innerHTML length:', mixSliders.innerHTML.length);
+            console.log('[RMS Init] simMixSliders.querySelector h4:', mixSliders.querySelector('h4')?.textContent);
+          }
+          
+          buildMixCounts();
+          console.log('[RMS Init] Built mix counts');
+          
+          // Verify after building
+          if (mixSliders) {
+            console.log('[RMS Init] After buildMixCounts, simMixSliders.innerHTML length:', mixSliders.innerHTML.length);
+            console.log('[RMS Init] After buildMixCounts, simMixSliders.querySelector h4:', mixSliders.querySelector('h4')?.textContent);
+            console.log('[RMS Init] simMixContainer children:', document.getElementById('simMixContainer')?.children.length);
+          }
+          
+          // Wire Total Units change to rebuild mix counts
+          const totalUnitsInput = document.getElementById('simTotalUnits');
+          if (totalUnitsInput) {
+            totalUnitsInput.addEventListener('input', function() {
+              buildMixCounts(); // Rebuild with new total
+              
+              // Check invariants
+              computeAndRenderInvariants();
+            });
+          }
           
           // Build trend % controls
           buildTrendOccPctControls();
@@ -5562,9 +6101,11 @@ document.addEventListener('DOMContentLoaded', function(){
           // Update visibility
           updateTrendControlsVisibility();
           
-          // Enable Start button
-          const startBtn = document.getElementById('simStartBtn');
-          if (startBtn) startBtn.disabled = false;
+          // Update button states (Start enabled, Stop/Step disabled initially)
+          updateButtonStates(false);
+          
+          // Check invariants and show banner
+          computeAndRenderInvariants();
           
           alert(`✅ Simulator initialized!\n\nTotal Units: ${totalUnits}\nSeed: ${seed}\n\nReady to run pricing.`);
         } catch (error) {
@@ -5577,22 +6118,29 @@ document.addEventListener('DOMContentLoaded', function(){
     if (simResetBtn) {
       simResetBtn.addEventListener('click', function() {
         if (window.RMS && window.RMS.resetSim) {
+          // Stop runner if running
+          if (window.RMS.getRunningState && window.RMS.getRunningState().isRunning) {
+            window.RMS.stop();
+          }
+          
           const seed = parseInt(document.getElementById('simSeed')?.value || '12345');
           window.RMS.resetSim(seed);
           console.log(`[RMS Step 1] Reset simulator to seed ${seed}`);
+          
+          // Clear history display
+          updateHistoryStrip();
+          
+          // Update button states
+          updateButtonStates(false);
+          
+          // Check invariants
+          computeAndRenderInvariants();
+          
           alert(`✅ Simulator reset to seed ${seed}`);
         }
       });
     }
     
-    if (simRunOnceBtn) {
-      simRunOnceBtn.addEventListener('click', function() {
-        if (window.RMS && window.RMS.runOnce) {
-          window.RMS.runOnce();
-          console.log('[RMS Step 1] RunOnce executed');
-        }
-      });
-    }
     
     if (simStepBtn) {
       simStepBtn.addEventListener('click', function() {
@@ -5606,8 +6154,32 @@ document.addEventListener('DOMContentLoaded', function(){
           // Update prices panel
           updatePricesPanel();
           
-          // Check invariants and show warning if needed
-          checkInvariants();
+          // Check invariants with snapshot
+          if (window.RMS && window.RMS.getHistory) {
+            const history = window.RMS.getHistory();
+            const snapshot = history.length > 0 ? history[history.length - 1] : null;
+            computeAndRenderInvariants(snapshot);
+          }
+        }
+      });
+    }
+    
+    if (simRunOnceBtn) {
+      simRunOnceBtn.addEventListener('click', function() {
+        if (window.RMS && window.RMS.runOnce) {
+          // Same as step, run once
+          window.RMS.step();
+          
+          // Update UI
+          updateHistoryStrip();
+          updatePricesPanel();
+          
+          // Check invariants with snapshot
+          if (window.RMS && window.RMS.getHistory) {
+            const history = window.RMS.getHistory();
+            const snapshot = history.length > 0 ? history[history.length - 1] : null;
+            computeAndRenderInvariants(snapshot);
+          }
         }
       });
     }
@@ -5624,9 +6196,7 @@ document.addEventListener('DOMContentLoaded', function(){
         window.RMS.start(speed);
         
         // Update button states
-        if (simStartBtn) simStartBtn.disabled = true;
-        if (simStopBtn) simStopBtn.disabled = false;
-        if (simStepBtn) simStepBtn.disabled = true; // Disable manual Step while running
+        updateButtonStates(true); // isRunning = true
       });
     }
     
@@ -5637,10 +6207,9 @@ document.addEventListener('DOMContentLoaded', function(){
         console.log('[RMS Step 1] Stop');
         window.RMS.stop();
         
-        // Update button states
-        if (simStartBtn) simStartBtn.disabled = false;
-        if (simStopBtn) simStopBtn.disabled = true;
-        if (simStepBtn) simStepBtn.disabled = false; // Re-enable manual Step
+        // Update button states (stop() call will trigger updateButtonStates via callback)
+        // But we also call it here for safety
+        updateButtonStates(false);
       });
     }
     
@@ -5711,6 +6280,81 @@ document.addEventListener('DOMContentLoaded', function(){
       }
     }
     
+    // Expose to window for runner access
+    window.checkInvariants = checkInvariants;
+    
+    // Central button state management
+    function updateButtonStates(isRunning) {
+      const startBtn = document.getElementById('simStartBtn');
+      const stopBtn = document.getElementById('simStopBtn');
+      const stepBtn = document.getElementById('simStepBtn');
+      const runOnceBtn = document.getElementById('simRunOnceBtn');
+      
+      // Check invariant status to determine if can run
+      const invariantStatus = window.RMS ? window.RMS.getInvariantStatus() : { ok: true, issues: [] };
+      const canRun = invariantStatus.ok;
+      
+      if (startBtn) startBtn.disabled = isRunning || !canRun;
+      if (stopBtn) stopBtn.disabled = !isRunning;
+      if (stepBtn) stepBtn.disabled = isRunning || !canRun;
+      if (runOnceBtn) runOnceBtn.disabled = !canRun;
+    }
+    
+    // Expose to window for runner access
+    window.updateButtonStates = updateButtonStates;
+    
+    // Render invariant status banner
+    function renderInvariantBanner() {
+      const banner = document.getElementById('simInvariantBanner');
+      const message = document.getElementById('simInvariantMessage');
+      if (!banner || !message) return;
+      
+      if (!window.RMS) {
+        banner.style.display = 'none';
+        return;
+      }
+      
+      const status = window.RMS.getInvariantStatus();
+      
+      // Set aria-live for accessibility
+      if (!banner.hasAttribute('aria-live')) {
+        banner.setAttribute('aria-live', 'polite');
+      }
+      
+      if (status.ok && status.issues.length === 0) {
+        banner.style.display = 'block';
+        banner.setAttribute('data-status', 'ok');
+        message.innerHTML = '<strong>✓</strong> All checks passed';
+      } else if (status.issues.length > 0) {
+        banner.style.display = 'block';
+        banner.setAttribute('data-status', 'error');
+        
+        let html = '<strong>✗</strong> Issues detected:<ul>';
+        status.issues.forEach(issue => {
+          html += `<li>${issue.detail}</li>`;
+        });
+        html += '</ul>';
+        message.innerHTML = html;
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+    
+    // Expose to window
+    window.renderInvariantBanner = renderInvariantBanner;
+    
+    // Compute and render invariants (for external calls)
+    function computeAndRenderInvariants(snapshot) {
+      if (!window.RMS) return;
+      
+      window.RMS.checkInvariants(snapshot);
+      renderInvariantBanner();
+      updateButtonStates(window.RMS.getRunningState ? window.RMS.getRunningState().isRunning : false);
+    }
+    
+    // Expose to window
+    window.computeAndRenderInvariants = computeAndRenderInvariants;
+    
     function updateHistoryStrip() {
       if (!window.RMS || !window.RMS.getHistory) return;
       
@@ -5721,9 +6365,12 @@ document.addEventListener('DOMContentLoaded', function(){
       historyStrip.innerHTML = history.map((snapshot, idx) => {
         const date = new Date(snapshot.nowSeconds * 1000);
         const timeStr = date.toLocaleTimeString('en-US', { hour12: false });
-        return `<div class="history-chip" data-snapshot-idx="${idx}" onclick="window.RMS.loadSnapshot(${idx}); updatePricesPanel(); console.log('Loaded snapshot', ${idx});" style="background:#0891b2; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;">${timeStr}</div>`;
+        return `<div class="history-chip" data-snapshot-idx="${idx}" onclick="window.RMS.loadSnapshot(${idx}); updatePricesPanel(); console.log('Loaded snapshot', ${idx});" tabindex="0">${timeStr}</div>`;
       }).join('');
     }
+    
+    // Expose to window for runner access
+    window.updateHistoryStrip = updateHistoryStrip;
     
     // Update window.RMS.loadSnapshot to load prices
     if (window.RMS) {
@@ -5739,75 +6386,195 @@ document.addEventListener('DOMContentLoaded', function(){
       };
     }
     
-    // Build floorplan mix sliders
-    function buildMixSliders() {
+    // Build floorplan mix counts (unit inputs with auto-balance)
+    function buildMixCounts() {
       const mixContainer = document.getElementById('simMixContainer');
-      if (!mixContainer) return;
+      const remainderSelector = document.getElementById('simRemainderFPSelector');
+      if (!mixContainer || !remainderSelector) {
+        console.error('[buildMixCounts] Missing elements:', { mixContainer: !!mixContainer, remainderSelector: !!remainderSelector });
+        return;
+      }
       
-      const floorplans = [
-        { code: 'S0', name: 'Studio', default: 25 },
-        { code: 'A1', name: '1BR', default: 40 },
-        { code: 'B2', name: '2BR', default: 30 },
-        { code: 'C3', name: '3BR', default: 5 }
-      ];
+      console.log('[buildMixCounts] Building mix counts UI');
       
+      // Get current counts and total units
+      const totalUnits = parseInt(document.getElementById('simTotalUnits')?.value || '200');
+      const counts = window.RMS.getMixCounts();
+      const remainderFP = window.RMS.getRemainderFP();
+      
+      // Default counts if not set (distribute evenly)
+      const floorplans = ['S0', 'A1', 'B2', 'C3'];
+      const defaultCounts = {};
+      floorplans.forEach((fp, idx) => {
+        defaultCounts[fp] = counts[fp] || Math.floor(totalUnits / floorplans.length) + (idx < totalUnits % floorplans.length ? 1 : 0);
+      });
+      
+      // Update RMS with default counts
+      window.RMS.setMixCounts(defaultCounts);
+      
+      // Set remainder selector
+      remainderSelector.value = remainderFP;
+      
+      // Build inputs
       mixContainer.innerHTML = '';
+      console.log('[buildMixCounts] Building inputs for', floorplans.length, 'floorplans');
       
       floorplans.forEach(fp => {
         const row = document.createElement('div');
-        row.style.marginBottom = '8px';
+        row.style.marginBottom = '6px';
         row.style.display = 'flex';
         row.style.alignItems = 'center';
         row.style.gap = '8px';
         
+        const isRemainder = fp === remainderFP;
+        const count = defaultCounts[fp] || 0;
+        const pct = totalUnits > 0 ? ((count / totalUnits) * 100).toFixed(1) : '0.0';
+        
         row.innerHTML = `
-          <label style="min-width:60px; font-size:12px;">${fp.code}</label>
-          <input type="range" min="0" max="100" value="${fp.default}" class="mix-slider" data-fp="${fp.code}" style="flex:1;">
-          <span class="mix-value" data-fp="${fp.code}" style="width:50px; text-align:right; font-size:12px;">${fp.default}%</span>
+          <label style="min-width:40px; font-size:12px;">${fp}</label>
+          <input type="number" 
+                 min="0" 
+                 step="1" 
+                 value="${count}" 
+                 ${isRemainder ? 'readonly' : ''} 
+                 class="mix-count-input" 
+                 data-fp="${fp}" 
+                 style="width:70px; padding:2px 4px; font-size:12px; ${isRemainder ? 'background:#f3f4f6;' : ''}">
+          <span class="mix-pct" data-fp="${fp}" style="width:50px; text-align:right; font-size:11px; color:#666;">(${pct}%)</span>
         `;
         
         mixContainer.appendChild(row);
       });
       
-      // Update total display
-      updateMixTotal();
+      console.log('[buildMixCounts] Finished building inputs, container now has', mixContainer.children.length, 'elements');
       
-      // Add event listeners
-      mixContainer.querySelectorAll('.mix-slider').forEach(slider => {
-        slider.addEventListener('input', function() {
-          const fp = this.getAttribute('data-fp');
-          const value = this.value;
-          const valueSpan = mixContainer.querySelector(`.mix-value[data-fp="${fp}"]`);
-          if (valueSpan) valueSpan.textContent = value + '%';
-          updateMixTotal();
-        });
+      // Add remainder selector listener
+      remainderSelector.addEventListener('change', function() {
+        const newRemainder = this.value;
+        window.RMS.setRemainderFP(newRemainder);
+        buildMixCounts(); // Rebuild with new remainder
+        
+        // Check invariants
+        computeAndRenderInvariants();
       });
+      
+      // Add input listeners
+      mixContainer.querySelectorAll('.mix-count-input').forEach(input => {
+        input.addEventListener('input', handleMixCountChange);
+        input.addEventListener('blur', handleMixCountBlur);
+      });
+      
+      updateMixCountsTotal();
     }
     
-    function updateMixTotal() {
+    function handleMixCountChange(event) {
+      const fp = event.target.getAttribute('data-fp');
+      const value = Math.max(0, parseInt(event.target.value) || 0);
+      
+      // Recalculate remainder
+      recalculateMixCounts(fp, value);
+    }
+    
+    function handleMixCountBlur(event) {
+      const fp = event.target.getAttribute('data-fp');
+      const value = Math.max(0, parseInt(event.target.value) || 0);
+      event.target.value = value;
+      
+      // Recalculate remainder
+      recalculateMixCounts(fp, value);
+    }
+    
+    function recalculateMixCounts(changedFP, newValue) {
       const mixContainer = document.getElementById('simMixContainer');
       if (!mixContainer) return;
       
-      const sliders = mixContainer.querySelectorAll('.mix-slider');
-      let total = 0;
-      sliders.forEach(slider => {
-        total += parseInt(slider.value);
+      const totalUnits = parseInt(document.getElementById('simTotalUnits')?.value || '200');
+      const remainderFP = window.RMS.getRemainderFP();
+      
+      // Collect current counts
+      const counts = {};
+      mixContainer.querySelectorAll('.mix-count-input').forEach(input => {
+        const fp = input.getAttribute('data-fp');
+        if (fp === changedFP) {
+          counts[fp] = newValue;
+        } else if (fp !== remainderFP) {
+          counts[fp] = Math.max(0, parseInt(input.value) || 0);
+        }
       });
       
-      // Add total display if not exists
-      let totalDisplay = mixContainer.querySelector('.mix-total');
-      if (!totalDisplay) {
-        totalDisplay = document.createElement('div');
-        totalDisplay.className = 'mix-total';
-        totalDisplay.style.marginTop = '8px';
-        totalDisplay.style.padding = '4px 8px';
-        totalDisplay.style.background = total === 100 ? '#dcfce7' : '#fef3c7';
-        totalDisplay.style.borderRadius = '4px';
-        mixContainer.appendChild(totalDisplay);
+      // Calculate remainder
+      const sumOthers = Object.values(counts).reduce((a, b) => a + b, 0);
+      let remainder = totalUnits - sumOthers;
+      
+      // If remainder would be negative, clamp the changed input down
+      if (remainder < 0) {
+        const clampedValue = totalUnits - (sumOthers - newValue);
+        counts[changedFP] = Math.max(0, clampedValue);
+        
+        // Update the input field with clamped value
+        const changedInput = mixContainer.querySelector(`.mix-count-input[data-fp="${changedFP}"]`);
+        if (changedInput) {
+          changedInput.value = counts[changedFP];
+        }
+        
+        // Recalculate remainder
+        remainder = totalUnits - (sumOthers - newValue + counts[changedFP]);
       }
       
-      totalDisplay.textContent = `Total: ${total}%`;
-      totalDisplay.style.background = total === 100 ? '#dcfce7' : (total > 100 ? '#fee2e2' : '#fef3c7');
+      remainder = Math.max(0, Math.min(remainder, totalUnits));
+      
+      // Update remainder input
+      const remainderInput = mixContainer.querySelector(`.mix-count-input[data-fp="${remainderFP}"]`);
+      if (remainderInput) {
+        remainderInput.value = remainder;
+        counts[remainderFP] = remainder;
+      }
+      
+      // Update percentages and total
+      mixContainer.querySelectorAll('.mix-count-input').forEach(input => {
+        const fp = input.getAttribute('data-fp');
+        const count = counts[fp] || 0;
+        const pct = totalUnits > 0 ? ((count / totalUnits) * 100).toFixed(1) : '0.0';
+        const pctSpan = mixContainer.querySelector(`.mix-pct[data-fp="${fp}"]`);
+        if (pctSpan) pctSpan.textContent = `(${pct}%)`;
+      });
+      
+      // Update RMS
+      window.RMS.setMixCounts(counts);
+      
+      updateMixCountsTotal();
+      
+      // Check invariants and update banner
+      computeAndRenderInvariants();
+    }
+    
+    function updateMixCountsTotal() {
+      const mixContainer = document.getElementById('simMixContainer');
+      const totalRow = document.getElementById('simMixTotalRow');
+      const totalValue = document.getElementById('simMixTotalValue');
+      if (!mixContainer || !totalValue) return;
+      
+      const totalUnits = parseInt(document.getElementById('simTotalUnits')?.value || '200');
+      
+      // Sum up all counts
+      let sum = 0;
+      mixContainer.querySelectorAll('.mix-count-input').forEach(input => {
+        sum += parseInt(input.value) || 0;
+      });
+      
+      // Update total display
+      totalValue.textContent = `${sum} units (target: ${totalUnits})`;
+      
+      // Update styling with data-status attribute
+      if (totalRow) {
+        if (sum === totalUnits) {
+          totalRow.setAttribute('data-status', 'ok');
+        } else if (sum > totalUnits) {
+          totalRow.setAttribute('data-status', 'error');
+        } else {
+          totalRow.setAttribute('data-status', 'warn');
+        }
+      }
     }
     
     // Build Trend % controls
@@ -5902,6 +6669,9 @@ document.addEventListener('DOMContentLoaded', function(){
       });
       
       window.RMS.setTrendOccPct(map);
+      
+      // Check invariants and update banner
+      computeAndRenderInvariants();
     }
     
     // Reset trend % button
@@ -5924,6 +6694,9 @@ document.addEventListener('DOMContentLoaded', function(){
         }
         
         console.log('[RM Step 1] Trend % reset to computed');
+        
+        // Check invariants
+        computeAndRenderInvariants();
       });
     }
     
@@ -5946,26 +6719,64 @@ document.addEventListener('DOMContentLoaded', function(){
       
       panel.style.display = 'block';
       
-      content.innerHTML = floorplans.map(fp => {
+      // Build table layout
+      let tableHTML = `
+        <table class="prices-table">
+          <thead>
+            <tr>
+              <th>FP</th>
+              <th style="text-align:right;">Price</th>
+              <th style="text-align:right;">Δ$</th>
+              <th style="text-align:right;">Δ%</th>
+              <th>Reasons</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      
+      floorplans.forEach(fp => {
         const p = prices[fp];
-        if (!p) return '';
+        if (!p) return;
         
         const newRent = p.newRent || 0;
         const delta = p.delta || 0;
-        const deltaPct = (newRent - 1200) > 0 ? '+2.5%' : '-1.2%'; // Dummy % for demo
+        const baseRent = 1200; // Example base
+        const deltaPct = baseRent > 0 ? (((newRent - baseRent) / baseRent) * 100).toFixed(1) : '0.0';
         const reasons = p.reasons || [];
         
-        return `
-          <div style="margin-bottom:8px; padding:6px; background:white; border-radius:4px;">
-            <strong style="font-size:13px;">${fp}</strong>
-            <div style="margin-top:4px; font-size:12px;">
-              Price: $${newRent.toFixed(0)} | Δ $${delta > 0 ? '+' : ''}${delta.toFixed(0)} | Δ ${deltaPct}
-            </div>
-            ${reasons.length > 0 ? `<div style="margin-top:4px; font-size:11px; color:#0891b2;">${reasons.join(', ')}</div>` : ''}
-          </div>
+        // Color code deltas with arrows
+        const deltaClass = delta > 0 ? 'delta-up' : delta < 0 ? 'delta-down' : '';
+        const deltaArrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '';
+        
+        // Render reasons as chips
+        let reasonsHTML = '';
+        if (reasons.length > 0) {
+          reasonsHTML = reasons.map(r => `<span class="reason-chip">${r}</span>`).join('');
+        } else {
+          reasonsHTML = '-';
+        }
+        
+        tableHTML += `
+          <tr>
+            <td><strong>${fp}</strong></td>
+            <td class="numeric">$${newRent.toFixed(0)}</td>
+            <td class="numeric ${deltaClass}">${delta > 0 ? '+' : ''}$${delta.toFixed(0)} ${deltaArrow}</td>
+            <td class="numeric ${deltaClass}">${deltaPct > 0 ? '+' : ''}${deltaPct}%</td>
+            <td>${reasonsHTML}</td>
+          </tr>
         `;
-      }).join('');
+      });
+      
+      tableHTML += `
+          </tbody>
+        </table>
+      `;
+      
+      content.innerHTML = tableHTML;
     }
+    
+    // Expose to window for runner access
+    window.updatePricesPanel = updatePricesPanel;
     
     // Show/Hide Trend % controls based on mode
     function updateTrendControlsVisibility() {
