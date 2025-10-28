@@ -5508,10 +5508,27 @@ document.addEventListener('DOMContentLoaded', function(){
     
     if (simInitBtn) {
       simInitBtn.addEventListener('click', function() {
+        console.log('[RMS Step 1] Init button clicked');
+        console.log('[RMS Step 1] window.RMS:', window.RMS);
+        console.log('[RMS Step 1] window.RMS.initSim:', window.RMS ? window.RMS.initSim : 'N/A');
+        
         const totalUnits = parseInt(document.getElementById('simTotalUnits')?.value || '200');
         const seed = parseInt(document.getElementById('simSeed')?.value || '12345');
         
-        if (window.RMS && window.RMS.initSim) {
+        try {
+          if (!window.RMS) {
+            console.error('[RMS Step 1] window.RMS is undefined');
+            alert('❌ window.RMS is undefined. Check console for errors.');
+            return;
+          }
+          
+          if (typeof window.RMS.initSim !== 'function') {
+            console.error('[RMS Step 1] window.RMS.initSim is not a function');
+            console.log('[RMS Step 1] window.RMS keys:', Object.keys(window.RMS));
+            alert('❌ window.RMS.initSim is not a function. Check console for details.');
+            return;
+          }
+          
           window.RMS.setMode('simulation');
           window.RMS.initSim({
             seed,
@@ -5550,9 +5567,9 @@ document.addEventListener('DOMContentLoaded', function(){
           if (startBtn) startBtn.disabled = false;
           
           alert(`✅ Simulator initialized!\n\nTotal Units: ${totalUnits}\nSeed: ${seed}\n\nReady to run pricing.`);
-        } else {
-          console.warn('[RMS Step 1] window.RMS not available');
-          alert('❌ Simulator API not loaded yet. Please refresh the page.');
+        } catch (error) {
+          console.error('[RMS Step 1] Error during init:', error);
+          alert(`❌ Error: ${error.message}`);
         }
       });
     }
