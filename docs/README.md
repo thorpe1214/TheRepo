@@ -311,6 +311,23 @@ npx jest tests/pricing/engine.spec.ts
 
 Step 107 introduces a deterministic simulator for testing and demos. The simulator generates realistic unit state evolution over time and integrates seamlessly with the pricing engine.
 
+### Step 108 View: 3-Line Combined Chart
+
+**Status**: Complete ✅
+
+Step 108 replaces the rent output display with a single combined chart showing:
+- **Rent ($)** on left Y-axis (blue solid line, small markers)
+- **FP Occupancy (%)** on right Y-axis (green solid line)
+- **Property Occupancy (%)** on right Y-axis (gray dashed line)
+
+The chart includes a comfort band shaded between 93-96% on the occupancy axis. Use the floorplan dropdown to switch between S0, A1, B2, C3 floorplans. The chart updates live on tick, history scrub, and when switching floorplans.
+
+### Step 109 View: Pause/Continue Controls
+
+**Status**: Complete ✅
+
+Step 109 adds full run loop control with Start/Pause/Continue/Clear buttons and a day counter (Day: X/30). While paused, operators can edit Target Occupancy %, Comfort Band (low/high %), and Speed/Aggression settings. Past snapshots remain unchanged; new settings apply only to future ticks. The comfort band shading updates immediately when settings change while paused.
+
 ### Key Features
 - ✅ **Deterministic**: Same seed produces identical results
 - ✅ **Realistic Evolution**: 7 unit states with natural transitions
@@ -751,3 +768,6 @@ For questions or support, contact the development team.
 
 *Last Updated: October 27, 2025*  
 *Current Version: Step 107-alpha — Simulation Infrastructure (v1.07-alpha)*
+
+## What's New
+- v1.09: Simulator pause and continue controls. History freezes on pause and resumes without resetting.

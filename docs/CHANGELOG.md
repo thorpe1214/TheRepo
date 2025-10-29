@@ -179,6 +179,49 @@ This release adds a complete development panel with trend override sliders for c
 
 ## [Unreleased]
 
+### Added - Step 109: Simulator Pause/Continue Controls
+
+**Status**: Complete ✅
+
+Step 109 adds full control over the simulator run loop with Start/Pause/Continue/Clear controls. Settings (Target Occupancy, Comfort Band, Speed/Aggression) can be edited while paused, and changes apply only to future ticks while preserving past history.
+
+#### Features
+- **State Machine**: CLEARED → Start → RUNNING → Pause → PAUSED → Continue → RUNNING → Clear → CLEARED
+- **Controls**: Start, Pause, Continue, Clear buttons with proper state-based enabling/disabling
+- **Day Counter**: Shows "Day: X/30" updating on each tick
+- **Settings Editing**: Target Occ %, Band Low/High %, Speed/Aggression editable when paused or cleared
+- **History Preservation**: Past snapshots remain unchanged when settings change mid-run
+- **Dynamic Comfort Band**: Chart band shading reflects current settings and updates immediately when changed while paused
+- **Invariant Handling**: Start/Continue disabled when invariants fail
+
+#### Technical Details
+- Settings changes while paused update chart comfort band instantly
+- New settings apply only to future ticks; past history unchanged
+- Day counter stops at maxDays (30) and auto-pauses
+- Chart remains continuous when switching floorplans or scrubbing history
+- All controls properly disabled/enabled based on state and invariants
+
+### Added - Step 108: Combined 3-line Chart Floorplan View
+
+**Status**: Complete ✅
+
+Step 108 replaces the rent output display with a single combined chart that overlays rent ($) on the left Y-axis with floorplan occupancy (%) and property occupancy (%) on the right Y-axis. The chart includes a comfort band shaded between 93-96% on the occupancy axis.
+
+#### Features
+- **3-line Chart**: Rent (blue solid), FP Occupancy (green solid), Property Occupancy (gray dashed)
+- **Floorplan Dropdown**: Switch between S0, A1, B2, C3 to view different floorplans
+- **Summary Line**: Shows current rent, delta, and FP occupancy percentage
+- **Comfort Band**: Visual indicator at 93-96% occupancy range
+- **History Integration**: Chart updates on tick, history scrub, and floorplan change
+- **Chart.js**: Uses Chart.js 4.4.0 for rendering
+
+#### Technical Details
+- Chart container replaces old prices panel (hidden in Step 108)
+- Reuses existing history snapshots (no new history arrays)
+- Multi-series tooltips show all three values on hover
+- Chart updates automatically on Step, Start/Stop, and history chip clicks
+- Old prices table removed/hidden in Step 108 only
+
 ## [1.07.0-alpha] - 2025-10-27
 
 ### Added - Step 107-alpha: Simulation Infrastructure Complete
@@ -753,4 +796,16 @@ Indicated with `!` after type: `feat(pricing)!: change calculation method`
 ---
 
 *For detailed workflow and contribution guidelines, see `WORKFLOW.md` and `CONTRIBUTING.md`.*
+
+
+
+## v1.09 — Step 109 (2025-10-29)
+
+- Simulator pause and continue controls
+
+- Pausing freezes history and continuing resumes without reset
+
+- Guardrails and invariant checks unchanged
+
+- UI controls scoped to the simulator panel
 
