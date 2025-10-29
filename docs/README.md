@@ -27,7 +27,7 @@ This system is built on three core principles:
 ## Testing Baseline
 
 ### Current Baseline
-**Step 109 — Simulator Pause/Continue (v1.09)**
+**Step 110 — Simulator Tab (v1.10)**
 
 This is the current stable baseline for all manual and automated testing. Use this Step file for:
 - Manual smoke checks
@@ -52,6 +52,7 @@ This is the current stable baseline for all manual and automated testing. Use th
 - **window.RMS API**: Full browser API for simulator control
 
 ### Recent Milestones
+- **Step 110 — Simulator Tab**: Simulator moved to dedicated tab (Oct 29, 2025)
 - **Step 109 — Simulator Pause/Continue**: Full run loop control with pause/resume (Oct 29, 2025)
 - **Step 108 — 3-Line Combined Chart**: Combined rent and occupancy visualization (Oct 28, 2025)
 - **Step 107-beta — Development Panel & Trend Overrides**: Developer tools and trend sliders for controlled scenarios (Nov 6, 2025)
@@ -68,7 +69,7 @@ This is the current stable baseline for all manual and automated testing. Use th
 
 ### Using the Testing Baseline
 When developing a new Step:
-1. Start from the current baseline Step file (Step 109)
+1. Start from the current baseline Step file (Step 110)
 2. Make your changes incrementally
 3. Compare behavior against the baseline to verify no regressions
 4. Run full smoke check before committing: `npm test`
@@ -769,7 +770,8 @@ For questions or support, contact the development team.
 ---
 
 *Last Updated: October 29, 2025*  
-*Current Version: Step 109 — Simulator Pause/Continue (v1.09)*
+*Current Version: Step 110 — Simulator Tab (v1.10)*
 
 ## What's New
+- v1.10: Simulator moved to dedicated tab. All functionality preserved with full-width layout.
 - v1.09: Simulator pause and continue controls. History freezes on pause and resumes without resetting.

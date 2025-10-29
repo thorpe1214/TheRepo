@@ -5,6 +5,28 @@ All notable changes to the Revenue Management System will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10] - 2025-10-29
+
+### Added - Step 110: Simulator Tab
+
+**Status**: Complete ✅
+
+Moved simulator UI and dev panel from Settings tab to a dedicated "Simulator" tab. All existing simulator functionality preserved (controls, seed, pause/continue, chart, history, invariants). No logic changes.
+
+#### What Changed
+- New "Simulator" tab in main navigation
+- Simulator UI rendered dynamically on first tab activation
+- Dev panel remains localhost-only
+- Settings tab unchanged (simulator UI hidden there for backward compatibility)
+- All simulator APIs and behavior unchanged
+- Playwright test added to validate tab rendering and checks
+
+#### Technical Details
+- Simulator shell rendered via `renderSimulatorShell()` function
+- Tab switching logic updated to handle simulator tab specially
+- Selectors unchanged (IDs preserved for compatibility)
+- Initialization runs on first tab activation via `initDevPanel()`
+
 ## [1.08.0-beta] - 2025-10-28
 
 ### Added - Step 1 Simulator Foundation — Phase 2
