@@ -27,7 +27,7 @@ This system is built on three core principles:
 ## Testing Baseline
 
 ### Current Baseline
-**Step 110 — Simulator Tab (v1.10)**
+**Step 112 — Per-Floorplan Controls (v1.12)**
 
 This is the current stable baseline for all manual and automated testing. Use this Step file for:
 - Manual smoke checks
@@ -48,10 +48,15 @@ This is the current stable baseline for all manual and automated testing. Use th
 - **Development Panel**: Developer tools with trend override sliders for controlled scenarios
 - **Engine Badge**: Visual indicator showing which pricing engine is active
 - **Simulator Demo Mode**: Load 50 units instantly without CSV upload
-- **Simulator Controls**: Total Units, Seed, Init/Reset/RunOnce/Step buttons
+- **Simulator Controls**: Total Units, Seed, Init/Reset/RunOnce/Step buttons, per-floorplan Trend % and Band controls
 - **window.RMS API**: Full browser API for simulator control
+- **Per-Floorplan Controls**: Individual FP Trend % and Band Low/High % settings for each floorplan
+- **Property Trend % Display**: Read-only weighted average of floorplan trends by unit count
+- **Chart Accuracy**: Floorplan occupancy chart displays exact FP Trend % values
 
 ### Recent Milestones
+- **Step 112 — Per-Floorplan Controls**: Per-FP trend and band editors, Property Trend % as weighted average, chart displays exact FP Trend % values, improved input contrast (Nov 2025)
+- **Step 111 — Simulator Controls**: Unit Count and Property Trend % controls added to simulator (Nov 2025)
 - **Step 110 — Simulator Tab**: Simulator moved to dedicated tab (Oct 29, 2025)
 - **Step 109 — Simulator Pause/Continue**: Full run loop control with pause/resume (Oct 29, 2025)
 - **Step 108 — 3-Line Combined Chart**: Combined rent and occupancy visualization (Oct 28, 2025)
@@ -69,7 +74,7 @@ This is the current stable baseline for all manual and automated testing. Use th
 
 ### Using the Testing Baseline
 When developing a new Step:
-1. Start from the current baseline Step file (Step 110)
+1. Start from the current baseline Step file (Step 112)
 2. Make your changes incrementally
 3. Compare behavior against the baseline to verify no regressions
 4. Run full smoke check before committing: `npm test`
@@ -101,7 +106,7 @@ We follow a **feature branch → PR → CI → merge → tag** workflow for all 
 ```
 /Users/brennanthorpe/Desktop/Thorpe Management/
 ├── steps/
-│   └── Step 104 — Seeded single-property mode.html  # Latest production-ready version
+│   └── Step 112 — per-floorplan controls.html  # Latest production-ready version
 ├── src/
 │   ├── js/
 │   │   ├── pricing-helpers.js     # Shared utilities (formatMoney, dates, etc.)
@@ -769,9 +774,11 @@ For questions or support, contact the development team.
 
 ---
 
-*Last Updated: October 29, 2025*  
-*Current Version: Step 110 — Simulator Tab (v1.10)*
+*Last Updated: November 2025*  
+*Current Version: Step 112 — Per-Floorplan Controls (v1.12)*
 
 ## What's New
+- v1.12: Per-floorplan Trend % and Band Low/High % controls. Property Trend % displays as weighted average. Chart shows exact FP Trend % values. Improved input contrast for readability.
+- v1.11: Unit Count and Property Trend % controls added to simulator. Persisted to localStorage.
 - v1.10: Simulator moved to dedicated tab. All functionality preserved with full-width layout.
 - v1.09: Simulator pause and continue controls. History freezes on pause and resumes without resetting.
