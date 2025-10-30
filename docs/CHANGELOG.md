@@ -5,6 +5,43 @@ All notable changes to the Revenue Management System will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12] - 2025-11
+
+### Added - Step 112: Per-Floorplan Controls
+
+**Status**: Complete ✅
+
+Added per-floorplan Trend % and Band Low/High % controls in the Simulator tab. Property Trend % now displays as a read-only weighted average of floorplan trends (weighted by unit count). Chart displays exact FP Trend % values. Improved input contrast for better readability.
+
+#### What Changed
+- Per-floorplan editable table with FP Code, Units, FP Trend %, Band Low %, and Band High %
+- Property Trend % displayed as read-only weighted average: `sum(FP Trend % × FP Units) / sum(FP Units)`
+- Chart now shows exact FP Trend % values instead of calculating from unit counts
+- Simulator occupancy driven by FP Trend % targets (initializes to targets, converges smoothly)
+- All per-FP values persisted to localStorage and loaded on boot
+- Improved CSS contrast for inputs: dark background with light text, muted when disabled
+- Input validation: Trend % clamped to 70-100%, Bands clamped to 80-100%
+
+#### Technical Details
+- Added `window.RMS.fpTrends`, `window.RMS.fpBands`, and `window.RMS.fpOccupiedUnits` state
+- Chart reads `window.RMS.fpTrends[selectedFP]` directly for accuracy
+- Inputs enabled/disabled based on simulator state (CLEARED/PAUSED/RUNNING)
+- CSS scoped to `#simulatorTabCard .sim-ctl` to avoid affecting other tabs
+
+## [1.11] - 2025-11
+
+### Added - Step 111: Simulator Controls
+
+**Status**: Complete ✅
+
+Added Unit Count and Property Trend % controls to the Simulator tab. Both values persisted to localStorage and loaded on boot. Unit Count input re-initializes the simulator when changed.
+
+#### What Changed
+- Unit Count input that re-initializes simulator on change
+- Property Trend % input that sets baseline property trend for daily advances
+- Both values persisted to localStorage (`sim.totalUnits`, `sim.propertyTrendPct`)
+- Values hydrate on page load
+
 ## [1.10] - 2025-10-29
 
 ### Added - Step 110: Simulator Tab
