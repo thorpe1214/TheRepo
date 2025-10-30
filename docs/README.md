@@ -774,18 +774,11 @@ For questions or support, contact the development team.
 
 ---
 
-<<<<<<< HEAD
 *Last Updated: November 2025*  
 *Current Version: Step 112 — Per-Floorplan Controls (v1.12)*
 
 ## What's New
 - v1.12: Per-floorplan Trend % and Band Low/High % controls. Property Trend % displays as weighted average. Chart shows exact FP Trend % values. Improved input contrast for readability.
 - v1.11: Unit Count and Property Trend % controls added to simulator. Persisted to localStorage.
-=======
-*Last Updated: October 29, 2025*  
-*Current Version: Step 110 — Simulator Tab (v1.10)*
-
-## What's New
->>>>>>> origin/main
 - v1.10: Simulator moved to dedicated tab. All functionality preserved with full-width layout.
 - v1.09: Simulator pause and continue controls. History freezes on pause and resumes without resetting.
